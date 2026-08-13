@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Sparkles,
   Scale,
@@ -9,9 +9,25 @@ import {
   Layers,
   Award,
   BookOpen,
+  Paintbrush,
+  Disc,
+  Info,
 } from 'lucide-react';
-import { CalculationInputs, Currency, LaborComplexity, MetalType } from '../types';
-import { LABOR_COMPLEXITY_OPTIONS, METAL_OPTIONS } from '../data/metalRates';
+import {
+  CalculationInputs,
+  CoatingType,
+  Currency,
+  LaborComplexity,
+  MetalRates,
+  MetalType,
+  SurfaceFinishType,
+} from '../types';
+import {
+  COATING_OPTIONS,
+  LABOR_COMPLEXITY_OPTIONS,
+  METAL_OPTIONS,
+  SURFACE_FINISH_OPTIONS,
+} from '../data/metalRates';
 import { GemstoneInput } from './GemstoneInput';
 import { SAMPLE_JEWELRY_ITEMS } from '../data/sampleItems';
 
@@ -19,6 +35,7 @@ interface JewelryFormProps {
   inputs: CalculationInputs;
   onChange: (inputs: CalculationInputs) => void;
   currency: Currency;
+  rates?: MetalRates;
   onOpenScanner: () => void;
 }
 
@@ -26,9 +43,31 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
   inputs,
   onChange,
   currency,
+  rates,
   onOpenScanner,
 }) => {
+  const [coatingCurrency, setCoatingCurrency] = useState<'UAH' | 'USD'>('UAH');
+  const [finishCurrency, setFinishCurrency] = useState<'UAH' | 'USD'>('UAH');
+
   const selectedMetalMeta = METAL_OPTIONS.find((m) => m.id === inputs.metalType) || METAL_OPTIONS[0];
+  const uahRate = rates?.currencies?.UAH || 41.5;
+  const weight = inputs.metalWeightGrams || 0;
+
+  // Auto coating calculation
+  const coatingType = inputs.coatingType || 'none';
+  const coatingOpt = COATING_OPTIONS.find((c) => c.id === coatingType) || COATING_OPTIONS[0];
+  const coatingBaseUsd = rates?.coatingRatesUsd?.[coatingType]?.base ?? coatingOpt.baseRateUsd;
+  const coatingPerGramUsd = rates?.coatingRatesUsd?.[coatingType]?.perGram ?? coatingOpt.rateUsdPerGram;
+  const autoCoatingCostUsd = coatingType === 'none' ? 0 : coatingBaseUsd + weight * coatingPerGramUsd;
+  const autoCoatingCostUah = autoCoatingCostUsd * uahRate;
+
+  // Auto finish calculation
+  const surfaceFinish = inputs.surfaceFinish || 'polished';
+  const finishOpt = SURFACE_FINISH_OPTIONS.find((f) => f.id === surfaceFinish) || SURFACE_FINISH_OPTIONS[0];
+  const finishBaseUsd = rates?.finishRatesUsd?.[surfaceFinish]?.base ?? finishOpt.baseRateUsd;
+  const finishPerGramUsd = rates?.finishRatesUsd?.[surfaceFinish]?.perGram ?? finishOpt.rateUsdPerGram;
+  const autoFinishCostUsd = surfaceFinish === 'polished' ? 0 : finishBaseUsd + weight * finishPerGramUsd;
+  const autoFinishCostUah = autoFinishCostUsd * uahRate;
 
   const handleFieldChange = (fields: Partial<CalculationInputs>) => {
     onChange({ ...inputs, ...fields });
@@ -277,6 +316,260 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Coating & Surface Finish (Оздоблення та Покриття) */}
+      <div className="pt-2 border-t border-slate-800 space-y-4">
+        
+        {/* Section Title */}
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+            <Paintbrush className="w-4 h-4 text-cyan-400" />
+            <span>Покриття (Родіювання, Позолота, Чорніння) та Характер Поверхні</span>
+          </label>
+          <span className="text-[10px] text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-800/80 font-medium">
+            Авторозрахунок гальваніки
+          </span>
+        </div>
+
+        {/* Coating Type Selection */}
+        <div className="space-y-2">
+          <label className="block text-[11px] font-medium text-slate-300">
+            Тип покриття виробу:
+          </label>
+          
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {COATING_OPTIONS.map((coat) => {
+              const isSelected = (inputs.coatingType || 'none') === coat.id;
+              return (
+                <button
+                  key={coat.id}
+                  type="button"
+                  onClick={() => handleFieldChange({ coatingType: coat.id })}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-cyan-950/60 border-cyan-400 ring-1 ring-cyan-400/50 text-white shadow-md'
+                      : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">{coat.nameUk}</span>
+                    {coat.id !== 'none' && (
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${coat.badgeColor}`}>
+                        гальваніка
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                    {coat.descriptionUk}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {inputs.coatingType && inputs.coatingType !== 'none' && (
+            <div className="p-3 bg-slate-800/50 border border-slate-700/60 rounded-xl space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
+                    <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+                    Середня вартість нанесення покриття:
+                  </span>
+                  <div className="text-[11px] font-mono text-cyan-300 font-bold pl-5">
+                    ~{Math.round(autoCoatingCostUah).toLocaleString('uk-UA')} ₴
+                    <span className="text-slate-400 font-normal ml-1">
+                      (${(autoCoatingCostUsd).toFixed(2)} USD)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:items-end space-y-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-slate-400 text-[11px]">Власна ціна:</span>
+                    
+                    {/* Currency selector tabs for custom input */}
+                    <div className="inline-flex bg-slate-900 p-0.5 rounded-lg border border-slate-700 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setCoatingCurrency('UAH')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          coatingCurrency === 'UAH'
+                            ? 'bg-cyan-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ₴ UAH
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCoatingCurrency('USD')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          coatingCurrency === 'USD'
+                            ? 'bg-cyan-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        $ USD
+                      </button>
+                    </div>
+
+                    <input
+                      type="number"
+                      step={coatingCurrency === 'UAH' ? '5' : '0.5'}
+                      min="0"
+                      placeholder="Авто"
+                      value={
+                        inputs.customCoatingCostUsd !== undefined
+                          ? coatingCurrency === 'UAH'
+                            ? Math.round(inputs.customCoatingCostUsd * uahRate)
+                            : inputs.customCoatingCostUsd
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          handleFieldChange({ customCoatingCostUsd: undefined });
+                        } else {
+                          const num = Math.max(0, parseFloat(val) || 0);
+                          const usdVal = coatingCurrency === 'UAH' ? num / uahRate : num;
+                          handleFieldChange({ customCoatingCostUsd: usdVal });
+                        }
+                      }}
+                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-cyan-300 font-mono font-bold focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  {inputs.customCoatingCostUsd !== undefined && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {coatingCurrency === 'UAH'
+                        ? `= $${inputs.customCoatingCostUsd.toFixed(2)} USD`
+                        : `= ~${Math.round(inputs.customCoatingCostUsd * uahRate)} ₴ UAH`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Surface Finish / Texture Selection */}
+        <div className="space-y-2 pt-1">
+          <label className="block text-[11px] font-medium text-slate-300 flex items-center space-x-1">
+            <Disc className="w-3.5 h-3.5 text-amber-400" />
+            <span>Характер поверхні (Текстура / Фактура):</span>
+          </label>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            {SURFACE_FINISH_OPTIONS.map((finish) => {
+              const isSelected = (inputs.surfaceFinish || 'polished') === finish.id;
+              return (
+                <button
+                  key={finish.id}
+                  type="button"
+                  onClick={() => handleFieldChange({ surfaceFinish: finish.id })}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-amber-950/40 border-amber-400 ring-1 ring-amber-400/50 text-white shadow-md'
+                      : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">{finish.nameUk}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                    {finish.descriptionUk}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {inputs.surfaceFinish && inputs.surfaceFinish !== 'polished' && (
+            <div className="p-3 bg-slate-800/50 border border-slate-700/60 rounded-xl space-y-2 text-xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="space-y-0.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
+                    <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    Вартість додаткової фактурної обробки:
+                  </span>
+                  <div className="text-[11px] font-mono text-amber-300 font-bold pl-5">
+                    ~{Math.round(autoFinishCostUah).toLocaleString('uk-UA')} ₴
+                    <span className="text-slate-400 font-normal ml-1">
+                      (${(autoFinishCostUsd).toFixed(2)} USD)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:items-end space-y-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-slate-400 text-[11px]">Власна ціна:</span>
+
+                    {/* Currency selector tabs for custom input */}
+                    <div className="inline-flex bg-slate-900 p-0.5 rounded-lg border border-slate-700 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setFinishCurrency('UAH')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          finishCurrency === 'UAH'
+                            ? 'bg-amber-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ₴ UAH
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFinishCurrency('USD')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          finishCurrency === 'USD'
+                            ? 'bg-amber-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        $ USD
+                      </button>
+                    </div>
+
+                    <input
+                      type="number"
+                      step={finishCurrency === 'UAH' ? '5' : '0.5'}
+                      min="0"
+                      placeholder="Авто"
+                      value={
+                        inputs.customFinishCostUsd !== undefined
+                          ? finishCurrency === 'UAH'
+                            ? Math.round(inputs.customFinishCostUsd * uahRate)
+                            : inputs.customFinishCostUsd
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          handleFieldChange({ customFinishCostUsd: undefined });
+                        } else {
+                          const num = Math.max(0, parseFloat(val) || 0);
+                          const usdVal = finishCurrency === 'UAH' ? num / uahRate : num;
+                          handleFieldChange({ customFinishCostUsd: usdVal });
+                        }
+                      }}
+                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-amber-300 font-mono font-bold focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  {inputs.customFinishCostUsd !== undefined && (
+                    <span className="text-[10px] text-slate-400 font-mono">
+                      {finishCurrency === 'UAH'
+                        ? `= $${inputs.customFinishCostUsd.toFixed(2)} USD`
+                        : `= ~${Math.round(inputs.customFinishCostUsd * uahRate)} ₴ UAH`}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* Store Retail Price & Currency */}

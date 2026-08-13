@@ -183,6 +183,7 @@ export default function App() {
               inputs={inputs}
               onChange={setInputs}
               currency={currency}
+              rates={metalRates}
               onOpenScanner={() => setIsScannerOpen(true)}
             />
           </div>

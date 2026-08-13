@@ -46,6 +46,39 @@ export interface LaborComplexityOption {
   typicalWastagePercent: number; // % угару (втрат металу)
 }
 
+export type CoatingType = 
+  | 'none'           // Без покриття
+  | 'rhodium_white'  // Білий родій
+  | 'rhodium_black'  // Чорний родій
+  | 'gilding'        // Позолота
+  | 'blackening'     // Чорніння (Оксидування)
+  | 'combined';      // Комбіноване покриття
+
+export interface CoatingOption {
+  id: CoatingType;
+  nameUk: string;
+  descriptionUk: string;
+  baseRateUsd: number;    // Фіксована базова вартість обробки
+  rateUsdPerGram: number; // Вартість за грам виробу
+  badgeColor: string;
+}
+
+export type SurfaceFinishType = 
+  | 'polished'        // Полірована (Глянцева)
+  | 'matte_sandblast' // Матова (Піскоструйна)
+  | 'satin_brushed'   // Сатинована (Матова щіткою)
+  | 'diamond_cut'     // Алмазна грань
+  | 'combined_texture';// Комбінована фактура
+
+export interface SurfaceFinishOption {
+  id: SurfaceFinishType;
+  nameUk: string;
+  descriptionUk: string;
+  baseRateUsd: number;
+  rateUsdPerGram: number;
+  badgeColor: string;
+}
+
 export type Currency = 'UAH' | 'USD' | 'EUR';
 
 export interface MetalRates {
@@ -63,6 +96,8 @@ export interface MetalRates {
     platinum: number;  // 999 platinum per gram USD
     palladium: number; // 999 palladium per gram USD
   };
+  coatingRatesUsd?: Record<CoatingType, { base: number; perGram: number }>;
+  finishRatesUsd?: Record<SurfaceFinishType, { base: number; perGram: number }>;
 }
 
 export interface CalculationInputs {
@@ -77,6 +112,10 @@ export interface CalculationInputs {
   wastagePercent: number; // угар, наприклад 8%
   laborComplexity: LaborComplexity;
   customLaborCostUsd?: number;
+  coatingType?: CoatingType; // тип покриття (родій, позолота, чорніння)
+  customCoatingCostUsd?: number; // кастомна вартість покриття
+  surfaceFinish?: SurfaceFinishType; // характер поверхні (полірована, матова піскоструй)
+  customFinishCostUsd?: number; // кастомна вартість обробки поверхні
   gemstones: GemstoneItem[];
   hallmarkCostUsd: number; // клеймування та випробовування
   retailPrice: number; // Ціна в магазині
@@ -93,8 +132,11 @@ export interface CalculationResult {
   rawMaterialsTotalUsd: number; // Метал + каміння
   wastageMetalCostUsd: number; // вартість втраченого металу
   laborCostUsd: number; // вартість роботи
+  coatingCostUsd: number; // вартість покриття (родій/позолота/чорніння)
+  finishCostUsd: number; // вартість обробки поверхні (поліровка/піскоструй)
+  finishingAndCoatingTotalUsd: number; // Сумарне оздоблення
   hallmarkCostUsd: number; // клеймування
-  productionCostUsd: number; // Загальна собівартість виготовлення (матеріали + втрати + робота)
+  productionCostUsd: number; // Загальна собівартість виготовлення (матеріали + втрати + робота + покриття/поверхня)
   retailPriceUsd: number; // Ціна магазину в USD
   markupAmountUsd: number; // Націнка магазину
   markupPercent: number; // % націнки
@@ -107,6 +149,9 @@ export interface CalculationResult {
   rawMaterialsTotal: number;
   productionCostTotal: number;
   laborAndLossesTotal: number;
+  coatingCostTotal: number;
+  finishCostTotal: number;
+  finishingAndCoatingTotal: number;
   retailPrice: number;
   markupAmount: number;
   pawnshopEstimate: number;

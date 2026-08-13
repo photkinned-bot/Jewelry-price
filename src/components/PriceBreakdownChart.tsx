@@ -160,13 +160,19 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
         {/* Labor */}
         <div className="p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-xl space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-sky-300">Робота та угар</span>
+            <span className="text-xs font-semibold text-sky-300">Робота, покриття та угар</span>
             <span className="text-xs font-bold text-sky-400 font-mono">{laborPercent}%</span>
           </div>
           <div className="text-lg font-bold text-white font-mono">
             {formatMoney(laborLossesVal, currency)}
           </div>
-          <p className="text-[11px] text-slate-400">Виробництво та втрати</p>
+          <p className="text-[11px] text-slate-400">
+            {result.finishingAndCoatingTotal > 0 ? (
+              <>Вкл. покриття та фактуру ({formatMoney(result.finishingAndCoatingTotal, currency)})</>
+            ) : (
+              <>Виробництво та втрати</>
+            )}
+          </p>
         </div>
 
         {/* Store markup */}

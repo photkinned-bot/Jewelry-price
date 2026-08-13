@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { X, RefreshCcw, Save, TrendingUp, Info, ExternalLink, Globe } from 'lucide-react';
+import { X, RefreshCcw, Save, TrendingUp, Info, ExternalLink, Globe, Paintbrush } from 'lucide-react';
 import { MetalRates } from '../types';
-import { DEFAULT_METAL_RATES } from '../data/metalRates';
+import { COATING_OPTIONS, DEFAULT_METAL_RATES, SURFACE_FINISH_OPTIONS } from '../data/metalRates';
 
 interface MetalRatesModalProps {
   isOpen: boolean;
@@ -211,6 +211,248 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
                   <span className="absolute right-3 top-2 text-xs text-slate-400">$ / г</span>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Reference Coating & Surface Finishing Rates */}
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-cyan-400 mb-3 flex items-center gap-1.5">
+              <Paintbrush className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Базові розрахункові тарифні ставки покриття та матирування (USD)</span>
+            </h3>
+
+            <div className="space-y-3 bg-slate-950/40 p-3.5 border border-slate-800 rounded-xl text-xs">
+              
+              {/* Rhodium White */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div>
+                  <span className="font-bold text-slate-100">⚪ Білий Родій:</span>
+                  <p className="text-[10px] text-slate-400">Гальванічне біле покриття</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.coatingRatesUsd?.rhodium_white?.base ?? 3.5}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.rhodium_white || { base: 3.5, perGram: 0.8 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          rhodium_white: { ...existing, base },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                  <span className="text-slate-400">+ $/г:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rates.coatingRatesUsd?.rhodium_white?.perGram ?? 0.8}
+                    onChange={(e) => {
+                      const perGram = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.rhodium_white || { base: 3.5, perGram: 0.8 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          rhodium_white: { ...existing, perGram },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Black Rhodium */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div>
+                  <span className="font-bold text-slate-100">🖤 Чорний Родій:</span>
+                  <p className="text-[10px] text-slate-400">Графітово-чорне покриття</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.coatingRatesUsd?.rhodium_black?.base ?? 4.5}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.rhodium_black || { base: 4.5, perGram: 1.0 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          rhodium_black: { ...existing, base },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                  <span className="text-slate-400">+ $/г:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rates.coatingRatesUsd?.rhodium_black?.perGram ?? 1.0}
+                    onChange={(e) => {
+                      const perGram = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.rhodium_black || { base: 4.5, perGram: 1.0 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          rhodium_black: { ...existing, perGram },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Gilding */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div>
+                  <span className="font-bold text-amber-300">👑 Позолота:</span>
+                  <p className="text-[10px] text-slate-400">Гальванічне золочення</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.coatingRatesUsd?.gilding?.base ?? 3.0}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.gilding || { base: 3.0, perGram: 0.9 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          gilding: { ...existing, base },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                  <span className="text-slate-400">+ $/г:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rates.coatingRatesUsd?.gilding?.perGram ?? 0.9}
+                    onChange={(e) => {
+                      const perGram = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.gilding || { base: 3.0, perGram: 0.9 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          gilding: { ...existing, perGram },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Blackening */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div>
+                  <span className="font-bold text-slate-300">🌑 Чорніння (Оксидування):</span>
+                  <p className="text-[10px] text-slate-400">Оксидування рельєфу</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.coatingRatesUsd?.blackening?.base ?? 2.0}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.blackening || { base: 2.0, perGram: 0.4 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          blackening: { ...existing, base },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                  <span className="text-slate-400">+ $/г:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rates.coatingRatesUsd?.blackening?.perGram ?? 0.4}
+                    onChange={(e) => {
+                      const perGram = parseFloat(e.target.value) || 0;
+                      const existing = rates.coatingRatesUsd?.blackening || { base: 2.0, perGram: 0.4 };
+                      setRates({
+                        ...rates,
+                        coatingRatesUsd: {
+                          ...rates.coatingRatesUsd,
+                          blackening: { ...existing, perGram },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Matte Sandblasting */}
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold text-sky-300">🏜️ Матова (Піскоструйна обробка):</span>
+                  <p className="text-[10px] text-slate-400">Фактурне матирування</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.finishRatesUsd?.matte_sandblast?.base ?? 2.0}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      const existing = rates.finishRatesUsd?.matte_sandblast || { base: 2.0, perGram: 0.5 };
+                      setRates({
+                        ...rates,
+                        finishRatesUsd: {
+                          ...rates.finishRatesUsd,
+                          matte_sandblast: { ...existing, base },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                  <span className="text-slate-400">+ $/г:</span>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={rates.finishRatesUsd?.matte_sandblast?.perGram ?? 0.5}
+                    onChange={(e) => {
+                      const perGram = parseFloat(e.target.value) || 0;
+                      const existing = rates.finishRatesUsd?.matte_sandblast || { base: 2.0, perGram: 0.5 };
+                      setRates({
+                        ...rates,
+                        finishRatesUsd: {
+                          ...rates.finishRatesUsd,
+                          matte_sandblast: { ...existing, perGram },
+                        } as any,
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
             </div>
           </div>
 

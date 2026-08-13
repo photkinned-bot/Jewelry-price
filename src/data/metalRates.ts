@@ -1,4 +1,11 @@
-import { LaborComplexityOption, MetalOption, MetalRates, MetalType } from '../types';
+import {
+  CoatingOption,
+  LaborComplexityOption,
+  MetalOption,
+  MetalRates,
+  MetalType,
+  SurfaceFinishOption,
+} from '../types';
 
 export const DEFAULT_METAL_RATES: MetalRates = {
   updatedAt: new Date().toISOString(),
@@ -15,7 +22,116 @@ export const DEFAULT_METAL_RATES: MetalRates = {
     platinum: 31.8,  // ~$990/oz (31.8 $/g)
     palladium: 34.2, // ~$1060/oz (34.2 $/g)
   },
+  coatingRatesUsd: {
+    none: { base: 0, perGram: 0 },
+    rhodium_white: { base: 3.5, perGram: 0.8 },
+    rhodium_black: { base: 4.5, perGram: 1.0 },
+    gilding: { base: 3.0, perGram: 0.9 },
+    blackening: { base: 2.0, perGram: 0.4 },
+    combined: { base: 6.0, perGram: 1.4 },
+  },
+  finishRatesUsd: {
+    polished: { base: 0, perGram: 0 },
+    matte_sandblast: { base: 2.0, perGram: 0.5 },
+    satin_brushed: { base: 1.5, perGram: 0.4 },
+    diamond_cut: { base: 3.0, perGram: 0.8 },
+    combined_texture: { base: 3.5, perGram: 0.9 },
+  },
 };
+
+export const COATING_OPTIONS: CoatingOption[] = [
+  {
+    id: 'none',
+    nameUk: 'Без покриття',
+    descriptionUk: 'Натуральний колір металу сплаву без гальванічного покриття',
+    baseRateUsd: 0,
+    rateUsdPerGram: 0,
+    badgeColor: 'bg-slate-800 text-slate-300 border-slate-700',
+  },
+  {
+    id: 'rhodium_white',
+    nameUk: 'Білий родій',
+    descriptionUk: 'Захисне дзеркально-біле покриття рідкісним металом платинової групи',
+    baseRateUsd: 3.5,
+    rateUsdPerGram: 0.8,
+    badgeColor: 'bg-slate-100 text-slate-900 border-slate-300',
+  },
+  {
+    id: 'rhodium_black',
+    nameUk: 'Чорний родій',
+    descriptionUk: 'Преміальне графітово-чорне покриття для стильного контрасту',
+    baseRateUsd: 4.5,
+    rateUsdPerGram: 1.0,
+    badgeColor: 'bg-zinc-900 text-zinc-100 border-zinc-700',
+  },
+  {
+    id: 'gilding',
+    nameUk: 'Позолота',
+    descriptionUk: 'Гальванічне нанесення шару золота 750/999 проби',
+    baseRateUsd: 3.0,
+    rateUsdPerGram: 0.9,
+    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  },
+  {
+    id: 'blackening',
+    nameUk: 'Чорніння (Оксидування)',
+    descriptionUk: 'Зачорнення рельєфу та заглиблень для контрастного візерунку',
+    baseRateUsd: 2.0,
+    rateUsdPerGram: 0.4,
+    badgeColor: 'bg-slate-950 text-slate-300 border-slate-800',
+  },
+  {
+    id: 'combined',
+    nameUk: 'Комбіноване покриття',
+    descriptionUk: 'Поєднання двох покриттів (наприклад, білий родій + позолота або чорніння)',
+    baseRateUsd: 6.0,
+    rateUsdPerGram: 1.4,
+    badgeColor: 'bg-indigo-950 text-indigo-300 border-indigo-700/60',
+  },
+];
+
+export const SURFACE_FINISH_OPTIONS: SurfaceFinishOption[] = [
+  {
+    id: 'polished',
+    nameUk: 'Полірована (Глянцева)',
+    descriptionUk: 'Гладке дзеркальне полірування поверхні виробу',
+    baseRateUsd: 0,
+    rateUsdPerGram: 0,
+    badgeColor: 'bg-amber-500/10 text-amber-300 border-amber-500/30',
+  },
+  {
+    id: 'matte_sandblast',
+    nameUk: 'Матова (Піскоструйна)',
+    descriptionUk: 'Оксамитова безбликова поверхня після струминної обробки мікрокульками',
+    baseRateUsd: 2.0,
+    rateUsdPerGram: 0.5,
+    badgeColor: 'bg-sky-500/10 text-sky-300 border-sky-500/30',
+  },
+  {
+    id: 'satin_brushed',
+    nameUk: 'Сатинована (Шовкова)',
+    descriptionUk: 'Тонка шовковиста направлена текстура поверхні',
+    baseRateUsd: 1.5,
+    rateUsdPerGram: 0.4,
+    badgeColor: 'bg-slate-800 text-slate-200 border-slate-700',
+  },
+  {
+    id: 'diamond_cut',
+    nameUk: 'Алмазна грань',
+    descriptionUk: 'Нанесення сліпучо блискучих граней алмазним різаком',
+    baseRateUsd: 3.0,
+    rateUsdPerGram: 0.8,
+    badgeColor: 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30',
+  },
+  {
+    id: 'combined_texture',
+    nameUk: 'Комбінована фактура',
+    descriptionUk: 'Контрастні поєднання полірованих і матованих ділянок',
+    baseRateUsd: 3.5,
+    rateUsdPerGram: 0.9,
+    badgeColor: 'bg-purple-500/10 text-purple-300 border-purple-500/30',
+  },
+];
 
 export const METAL_OPTIONS: MetalOption[] = [
   {
