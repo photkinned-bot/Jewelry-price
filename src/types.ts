@@ -26,12 +26,14 @@ export interface GemstoneItem {
   id: string;
   type: GemType;
   nameUk: string;
+  customName?: string; // Власна назва для типу "Інший камінь"
   count: number;
-  caratsPerStone: number; // або сумарна вага в каратах
+  caratsPerStone: number; // або вага в каратах 1 штуки
   origin: GemOrigin;
   colorQuality?: string; // наприклад "D-F" або "4"
   clarityQuality?: string; // наприклад "VVS" або "3"
   customPricePerCaratUsd?: number;
+  customTotalPriceUsd?: number; // Ручна ціна за каміння ($ USD)
 }
 
 export type LaborComplexity = 'stamping' | 'standard_casting' | 'complex_handcraft' | 'exclusive_designer';

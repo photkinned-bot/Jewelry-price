@@ -78,8 +78,12 @@ export const GEM_OPTIONS_META: GemOptionMeta[] = [
  * Оцінює ринкову вартість каменя з урахуванням каратності, походження та параметрів
  */
 export function calculateGemstoneUsdValue(gem: GemstoneItem): number {
+  if (gem.customTotalPriceUsd !== undefined && gem.customTotalPriceUsd >= 0) {
+    return gem.customTotalPriceUsd;
+  }
+
   if (gem.customPricePerCaratUsd && gem.customPricePerCaratUsd > 0) {
-    return gem.customPricePerCaratUsd * gem.caratsPerStone * gem.count;
+    return Math.round(gem.customPricePerCaratUsd * gem.caratsPerStone * gem.count * 10) / 10;
   }
 
   const meta = GEM_OPTIONS_META.find((m) => m.type === gem.type) || GEM_OPTIONS_META[0];

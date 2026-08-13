@@ -202,6 +202,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                 min="0.1"
                 placeholder="4.50"
                 value={inputs.metalWeightGrams || ''}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   handleFieldChange({ metalWeightGrams: Math.max(0, parseFloat(e.target.value) || 0) })
                 }
@@ -266,6 +267,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                 min="0"
                 max="30"
                 value={inputs.wastagePercent}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) =>
                   handleFieldChange({ wastagePercent: Math.max(0, parseInt(e.target.value) || 0) })
                 }
@@ -292,6 +294,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
               min="0"
               placeholder="введіть ціну в магазині"
               value={inputs.retailPrice || ''}
+              onFocus={(e) => e.target.select()}
               onChange={(e) =>
                 handleFieldChange({ retailPrice: Math.max(0, parseFloat(e.target.value) || 0) })
               }
