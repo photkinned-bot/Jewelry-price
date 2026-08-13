@@ -1,0 +1,6 @@
+{
+  "name": "Ювелірний калькулятор прозорості",
+  "description": "Аналіз реальної собівартості ювелірних прикрас, оцінка каміння, металів, націнки та інвестиційної привабливості.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

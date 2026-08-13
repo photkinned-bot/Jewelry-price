@@ -1,0 +1,263 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Header,
+} from './components/Header';
+import { JewelryForm } from './components/JewelryForm';
+import { PriceBreakdownChart } from './components/PriceBreakdownChart';
+import { MarkupGauge } from './components/MarkupGauge';
+import { InvestmentCard } from './components/InvestmentCard';
+import { AiAdviceCard } from './components/AiAdviceCard';
+import { MetalRatesModal } from './components/MetalRatesModal';
+import { AiScannerModal } from './components/AiScannerModal';
+import { ComparisonView } from './components/ComparisonView';
+import { HistoryDrawer } from './components/HistoryDrawer';
+import { JewelryGuideModal } from './components/JewelryGuideModal';
+
+import { CalculationInputs, Currency, MetalRates, SavedCalculation } from './types';
+import { DEFAULT_METAL_RATES } from './data/metalRates';
+import { calculateJewelryBreakdown } from './data/calculationEngine';
+import { SAMPLE_JEWELRY_ITEMS } from './data/sampleItems';
+import { Save, History, Sparkles, Scale, CheckCircle2, RefreshCw } from 'lucide-react';
+
+const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
+
+export default function App() {
+  const [currency, setCurrency] = useState<Currency>('UAH');
+  const [metalRates, setMetalRates] = useState<MetalRates>(DEFAULT_METAL_RATES);
+
+  // Current calculation form state
+  const [inputs, setInputs] = useState<CalculationInputs>(SAMPLE_JEWELRY_ITEMS[0]);
+
+  // Saved calculations history
+  const [savedCalculations, setSavedCalculations] = useState<SavedCalculation[]>(() => {
+    try {
+      const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Modal visibility states
+  const [isRatesModalOpen, setIsRatesModalOpen] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
+
+  // Sync saved calculations to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(savedCalculations));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+  }, [savedCalculations]);
+
+  // Fetch live metal rates from server API on mount
+  useEffect(() => {
+    async function fetchLiveRates() {
+      try {
+        const res = await fetch('/api/metal-rates');
+        if (res.ok) {
+          const data = await res.json();
+          setMetalRates((prev) => ({
+            ...prev,
+            ...data,
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not load live rates, using defaults:', err);
+      }
+    }
+    fetchLiveRates();
+  }, []);
+
+  // Compute live breakdown result whenever inputs, currency or metal rates change
+  const result = useMemo(() => {
+    return calculateJewelryBreakdown(
+      { ...inputs, currency },
+      metalRates
+    );
+  }, [inputs, currency, metalRates]);
+
+  // Save current item to history
+  const handleSaveCalculation = () => {
+    const newSaved: SavedCalculation = {
+      id: 'saved-' + Date.now(),
+      createdAt: new Date().toISOString(),
+      inputs: { ...inputs, currency },
+      result,
+    };
+    setSavedCalculations((prev) => [newSaved, ...prev]);
+    setSaveSuccessNotice(true);
+    setTimeout(() => setSaveSuccessNotice(false), 2500);
+  };
+
+  const handleDeleteSaved = (id: string) => {
+    setSavedCalculations((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const handleClearAllSaved = () => {
+    if (window.confirm('Ви дійсно бажаєте очистити всю історію порівнянь?')) {
+      setSavedCalculations([]);
+    }
+  };
+
+  const handleApplyScannedData = (scanned: Partial<CalculationInputs>) => {
+    setInputs((prev) => ({
+      ...prev,
+      ...scanned,
+      id: 'calc-' + Date.now(),
+    }));
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans antialiased selection:bg-amber-500 selection:text-slate-950">
+      
+      {/* Top Bar Header */}
+      <Header
+        currency={currency}
+        setCurrency={setCurrency}
+        metalRates={metalRates}
+        onOpenRatesModal={() => setIsRatesModalOpen(true)}
+        onOpenScanner={() => setIsScannerOpen(true)}
+        onOpenGuide={() => setIsGuideOpen(true)}
+        onOpenComparison={() => setIsComparisonOpen(true)}
+        savedCount={savedCalculations.length}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+        
+        {/* Banner / Notice Bar */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-gradient-to-r from-slate-900 via-amber-950/20 to-slate-900 border border-slate-800 rounded-2xl shadow-lg">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+              <Scale className="w-5 h-5 text-amber-400" />
+            </div>
+            <div className="text-xs">
+              <span className="font-bold text-white block">
+                Перевіряйте ціну будь-яких ювелірних прикрас перед покупкою
+              </span>
+              <span className="text-slate-400">
+                Калькулятор вираховує чистий вміст металу, ринкову вартість каміння й відокремлює її від націнки магазину.
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+            <button
+              onClick={handleSaveCalculation}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/10 transition-all active:scale-95"
+            >
+              <Save className="w-3.5 h-3.5" />
+              <span>Зберегти в історію</span>
+            </button>
+
+            <button
+              onClick={() => setIsHistoryOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium text-xs transition-colors"
+            >
+              <History className="w-3.5 h-3.5 text-amber-400" />
+              <span>Історія ({savedCalculations.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Save success toast banner */}
+        {saveSuccessNotice && (
+          <div className="p-3 bg-emerald-950/80 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 flex items-center space-x-2 animate-in fade-in slide-in-from-top-2 duration-200">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Прикрасу успішно збережено до історії порівняння!</span>
+          </div>
+        )}
+
+        {/* Two Column Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          
+          {/* LEFT COLUMN (Form Inputs) - 5 cols */}
+          <div className="lg:col-span-5 space-y-6">
+            <JewelryForm
+              inputs={inputs}
+              onChange={setInputs}
+              currency={currency}
+              onOpenScanner={() => setIsScannerOpen(true)}
+            />
+          </div>
+
+          {/* RIGHT COLUMN (Live Breakdown Analytics) - 7 cols */}
+          <div className="lg:col-span-7 space-y-6">
+            
+            {/* 1. Markup Meter / Gauge */}
+            <MarkupGauge result={result} currency={currency} />
+
+            {/* 2. Recharts Price Breakdown */}
+            <PriceBreakdownChart result={result} currency={currency} />
+
+            {/* 3. Investment & Pawnshop Liquidity */}
+            <InvestmentCard result={result} currency={currency} />
+
+            {/* 4. Gemini AI Advice Consultant */}
+            <AiAdviceCard inputs={inputs} result={result} />
+
+          </div>
+
+        </div>
+
+      </main>
+
+      {/* Footer */}
+      <footer className="border-t border-slate-800 bg-slate-900/50 py-6 text-slate-500 text-xs mt-12">
+        <div className="max-w-7xl mx-auto px-4 text-center space-y-2">
+          <p className="font-serif text-slate-400 font-medium">
+            Ювелірний Калькулятор Прозорості (Jewelry Value & Markup Tracker)
+          </p>
+          <p className="text-[11px]">
+            Розрахунки базуються на орієнтовних міжнародних біржових котируваннях металів (LBMA spot) та стандартних коефіцієнтах ювелірного виробництва.
+          </p>
+        </div>
+      </footer>
+
+      {/* MODALS & DRAWERS */}
+      <MetalRatesModal
+        isOpen={isRatesModalOpen}
+        onClose={() => setIsRatesModalOpen(false)}
+        metalRates={metalRates}
+        onSaveRates={setMetalRates}
+      />
+
+      <AiScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onApplyData={handleApplyScannedData}
+      />
+
+      <ComparisonView
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        savedItems={savedCalculations}
+        currency={currency}
+        onDeleteSaved={handleDeleteSaved}
+        onSelectCalculatedItem={(item) => setInputs(item.inputs)}
+      />
+
+      <HistoryDrawer
+        isOpen={isHistoryOpen}
+        onClose={() => setIsHistoryOpen(false)}
+        savedItems={savedCalculations}
+        currency={currency}
+        onLoadItem={(item) => setInputs(item.inputs)}
+        onDeleteItem={handleDeleteSaved}
+        onClearAll={handleClearAllSaved}
+      />
+
+      <JewelryGuideModal
+        isOpen={isGuideOpen}
+        onClose={() => setIsGuideOpen(false)}
+      />
+
+    </div>
+  );
+}
