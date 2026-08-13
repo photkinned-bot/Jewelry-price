@@ -5,6 +5,7 @@ import {
   COATING_OPTIONS,
   convertCurrency,
   convertToUsd,
+  ENGRAVING_OPTIONS,
   LABOR_COMPLEXITY_OPTIONS,
   SURFACE_FINISH_OPTIONS,
 } from './metalRates';
@@ -78,30 +79,42 @@ export function calculateJewelryBreakdown(
     finishCostUsd = inputs.customFinishCostUsd;
   }
 
-  const finishingAndCoatingTotalUsd = coatingCostUsd + finishCostUsd;
+  // 9. Engraving cost (Гравіювання: лазерне або ручне)
+  const engravingType = inputs.engravingType || 'none';
+  const engravingOpt = ENGRAVING_OPTIONS.find((e) => e.id === engravingType) || ENGRAVING_OPTIONS[0];
 
-  // 9. Hallmark / Proba testing fee
+  const customEngravingRates = rates.engravingRatesUsd?.[engravingType];
+  const engravingBase = customEngravingRates?.base ?? engravingOpt.baseRateUsd;
+
+  let engravingCostUsd = engravingType === 'none' ? 0 : engravingBase;
+  if (typeof inputs.customEngravingCostUsd === 'number' && inputs.customEngravingCostUsd >= 0) {
+    engravingCostUsd = inputs.customEngravingCostUsd;
+  }
+
+  const finishingAndCoatingTotalUsd = coatingCostUsd + finishCostUsd + engravingCostUsd;
+
+  // 10. Hallmark / Proba testing fee
   const hallmarkCostUsd = inputs.hallmarkCostUsd || 1.5;
 
-  // 10. Total Production Cost (Чиста собівартість виготовлення)
+  // 11. Total Production Cost (Чиста собівартість виготовлення)
   const productionCostUsd =
     rawMaterialsTotalUsd + wastageMetalCostUsd + laborCostUsd + finishingAndCoatingTotalUsd + hallmarkCostUsd;
 
-  // 11. Markup calculations
+  // 12. Markup calculations
   const markupAmountUsd = Math.max(0, retailPriceUsd - productionCostUsd);
   const markupPercent = productionCostUsd > 0 ? (markupAmountUsd / productionCostUsd) * 100 : 0;
   const markupRatio = productionCostUsd > 0 ? retailPriceUsd / productionCostUsd : 1;
 
-  // 12. Asset preservation ratio (Коефіцієнт збереження капіталу в металі/камінні)
+  // 13. Asset preservation ratio (Коефіцієнт збереження капіталу в металі/камінні)
   const assetPreservationRatioPercent =
     retailPriceUsd > 0 ? Math.min(100, (rawMaterialsTotalUsd / retailPriceUsd) * 100) : 0;
 
-  // 13. Pawnshop estimate (Ломбард)
+  // 14. Pawnshop estimate (Ломбард)
   const pawnshopMetalUsd = pureMetalPriceUsd * 0.82;
   const pawnshopGemsUsd = gemstonesTotalUsd * 0.3; // каміння в ломбарді зазвичай оцінюють з дисконтом
   const pawnshopEstimateUsd = pawnshopMetalUsd + pawnshopGemsUsd;
 
-  // 14. Markup Category
+  // 15. Markup Category
   let markupCategory: 'wholesale' | 'fair' | 'mass_market' | 'luxury_overpriced' = 'fair';
   if (markupPercent <= 35) {
     markupCategory = 'wholesale';
@@ -127,6 +140,7 @@ export function calculateJewelryBreakdown(
     laborCostUsd,
     coatingCostUsd,
     finishCostUsd,
+    engravingCostUsd,
     finishingAndCoatingTotalUsd,
     hallmarkCostUsd,
     productionCostUsd,
@@ -143,6 +157,7 @@ export function calculateJewelryBreakdown(
     laborAndLossesTotal: convertCurrency(laborAndProcessingTotalUsd, curr, rates),
     coatingCostTotal: convertCurrency(coatingCostUsd, curr, rates),
     finishCostTotal: convertCurrency(finishCostUsd, curr, rates),
+    engravingCostTotal: convertCurrency(engravingCostUsd, curr, rates),
     finishingAndCoatingTotal: convertCurrency(finishingAndCoatingTotalUsd, curr, rates),
     retailPrice: inputs.retailPrice,
     markupAmount: convertCurrency(markupAmountUsd, curr, rates),

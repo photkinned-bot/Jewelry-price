@@ -408,7 +408,7 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
               </div>
 
               {/* Matte Sandblasting */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
                 <div>
                   <span className="font-bold text-sky-300">🏜️ Матова (Піскоструйна обробка):</span>
                   <p className="text-[10px] text-slate-400">Фактурне матирування</p>
@@ -449,6 +449,64 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
                       });
                     }}
                     className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-100 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Laser Engraving Base Rate */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-800/80 pb-2">
+                <div>
+                  <span className="font-bold text-purple-300">⚡ Лазерне Гравіювання:</span>
+                  <p className="text-[10px] text-slate-400">Автоматичне лазерне нанесення</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={rates.engravingRatesUsd?.laser?.base ?? 8.5}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      setRates({
+                        ...rates,
+                        engravingRatesUsd: {
+                          ...rates.engravingRatesUsd,
+                          laser: { base },
+                          hand: rates.engravingRatesUsd?.hand || { base: 22.0 },
+                          none: { base: 0 },
+                        },
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-purple-200 font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Hand Engraving Base Rate */}
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <span className="font-bold text-amber-300">✒️ Ручне Гравіювання (Штихель):</span>
+                  <p className="text-[10px] text-slate-400">Майстерна робота гравіювальника</p>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px]">
+                  <span className="text-slate-400">База: $</span>
+                  <input
+                    type="number"
+                    step="1"
+                    value={rates.engravingRatesUsd?.hand?.base ?? 22.0}
+                    onChange={(e) => {
+                      const base = parseFloat(e.target.value) || 0;
+                      setRates({
+                        ...rates,
+                        engravingRatesUsd: {
+                          ...rates.engravingRatesUsd,
+                          hand: { base },
+                          laser: rates.engravingRatesUsd?.laser || { base: 8.5 },
+                          none: { base: 0 },
+                        },
+                      });
+                    }}
+                    className="w-16 bg-slate-800 border border-slate-700 rounded px-2 py-1 text-amber-200 font-mono font-bold"
                   />
                 </div>
               </div>

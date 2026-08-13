@@ -70,12 +70,25 @@ export type SurfaceFinishType =
   | 'diamond_cut'     // Алмазна грань
   | 'combined_texture';// Комбінована фактура
 
-export interface SurfaceFinishOption {
+export type SurfaceFinishOption = {
   id: SurfaceFinishType;
   nameUk: string;
   descriptionUk: string;
   baseRateUsd: number;
   rateUsdPerGram: number;
+  badgeColor: string;
+};
+
+export type EngravingType = 
+  | 'none'   // Без гравіювання
+  | 'laser'  // Лазерне гравіювання
+  | 'hand';  // Ручне гравіювання
+
+export interface EngravingOption {
+  id: EngravingType;
+  nameUk: string;
+  descriptionUk: string;
+  baseRateUsd: number;
   badgeColor: string;
 }
 
@@ -98,6 +111,7 @@ export interface MetalRates {
   };
   coatingRatesUsd?: Record<CoatingType, { base: number; perGram: number }>;
   finishRatesUsd?: Record<SurfaceFinishType, { base: number; perGram: number }>;
+  engravingRatesUsd?: Record<EngravingType, { base: number }>;
 }
 
 export interface CalculationInputs {
@@ -116,6 +130,9 @@ export interface CalculationInputs {
   customCoatingCostUsd?: number; // кастомна вартість покриття
   surfaceFinish?: SurfaceFinishType; // характер поверхні (полірована, матова піскоструй)
   customFinishCostUsd?: number; // кастомна вартість обробки поверхні
+  engravingType?: EngravingType; // тип гравіювання (без, лазерне, ручне)
+  engravingText?: string; // напис або символ на виробі
+  customEngravingCostUsd?: number; // кастомна (ручна) вартість гравіювання
   gemstones: GemstoneItem[];
   hallmarkCostUsd: number; // клеймування та випробовування
   retailPrice: number; // Ціна в магазині
@@ -134,9 +151,10 @@ export interface CalculationResult {
   laborCostUsd: number; // вартість роботи
   coatingCostUsd: number; // вартість покриття (родій/позолота/чорніння)
   finishCostUsd: number; // вартість обробки поверхні (поліровка/піскоструй)
-  finishingAndCoatingTotalUsd: number; // Сумарне оздоблення
+  engravingCostUsd: number; // вартість гравіювання (лазерне/ручне)
+  finishingAndCoatingTotalUsd: number; // Сумарне оздоблення (покриття + фактура + гравіювання)
   hallmarkCostUsd: number; // клеймування
-  productionCostUsd: number; // Загальна собівартість виготовлення (матеріали + втрати + робота + покриття/поверхня)
+  productionCostUsd: number; // Загальна собівартість виготовлення (матеріали + втрати + робота + покриття/поверхня/гравіювання)
   retailPriceUsd: number; // Ціна магазину в USD
   markupAmountUsd: number; // Націнка магазину
   markupPercent: number; // % націнки
@@ -151,6 +169,7 @@ export interface CalculationResult {
   laborAndLossesTotal: number;
   coatingCostTotal: number;
   finishCostTotal: number;
+  engravingCostTotal: number;
   finishingAndCoatingTotal: number;
   retailPrice: number;
   markupAmount: number;

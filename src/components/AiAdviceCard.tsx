@@ -40,6 +40,12 @@ export const AiAdviceCard: React.FC<AiAdviceCardProps> = ({ inputs, result }) =>
         }),
       });
 
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const textErr = await response.text();
+        throw new Error(textErr.slice(0, 150) || 'Помилка отримання даних від сервера');
+      }
+
       const json = await response.json();
       if (!response.ok || !json.success) {
         throw new Error(json.error || 'Не вдалося отримати консультацію від AI');

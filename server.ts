@@ -14,18 +14,83 @@ app.use(express.json({ limit: "15mb" }));
 // Initialize Gemini AI client on server side
 const getAiClient = () => {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    console.warn("GEMINI_API_KEY is missing from environment variables.");
+  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+    return null;
   }
   return new GoogleGenAI({
-    apiKey: apiKey || "",
-    httpOptions: {
-      headers: {
-        "User-Agent": "aistudio-build",
-      },
-    },
+    apiKey,
   });
 };
+
+function safeParseJson(rawText: string) {
+  if (!rawText) return {};
+  try {
+    const cleaned = rawText
+      .replace(/```json/gi, "")
+      .replace(/```/g, "")
+      .trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("Failed to parse JSON text from Gemini:", rawText);
+    throw new Error("Не вдалося розпарсити відповідь від AI");
+  }
+}
+
+// Fallback rule-based advice generation if AI service is unavailable
+function generateRuleBasedAdvice(calc: any) {
+  const markupPercent = Number(calc.markupPercent) || 0;
+  const retailPrice = Number(calc.retailPrice) || 0;
+  const materialsCost = Number(calc.materialsCost) || 0;
+  const costBasis = Number(calc.costBasis) || 0;
+  const title = calc.title || "Ювелірний виріб";
+
+  let investmentRating = 6;
+  if (markupPercent <= 35) investmentRating = 9;
+  else if (markupPercent <= 70) investmentRating = 8;
+  else if (markupPercent <= 120) investmentRating = 6;
+  else if (markupPercent <= 200) investmentRating = 4;
+  else investmentRating = 3;
+
+  const pros: string[] = [];
+  const cons: string[] = [];
+
+  if (materialsCost > 0 && retailPrice > 0) {
+    const rawRatio = Math.round((materialsCost / retailPrice) * 100);
+    if (rawRatio >= 50) {
+      pros.push(`Висока частка дорогоцінного металу та каміння (${rawRatio}% від ціни)`);
+    } else {
+      cons.push(`Лише ${rawRatio}% ціни магазину покривається чистою вартістю матеріалів`);
+    }
+  }
+
+  if (markupPercent <= 50) {
+    pros.push("Поміркована торговельна націнка магазину");
+  } else {
+    cons.push(`Суттєва націнка магазину (+${Math.round(markupPercent)}% до собівартості)`);
+  }
+
+  if (Array.isArray(calc.gemstones) && calc.gemstones.length > 0) {
+    pros.push(`Виріб містить вставки дорогоцінного каміння (${calc.gemstones.length} шт)`);
+  } else {
+    pros.push("Відсутні вставки — простіший догляд та вища ліквідність металу");
+  }
+
+  let recommendedDiscount = 10;
+  if (markupPercent > 150) recommendedDiscount = 25;
+  else if (markupPercent > 100) recommendedDiscount = 20;
+  else if (markupPercent > 60) recommendedDiscount = 15;
+
+  return {
+    summary: `Аналіз виробу "${title}": собівартість становить близько ${Math.round(costBasis)} ${calc.currency}, а роздрібна націнка дорівнює ${Math.round(markupPercent)}%. ${markupPercent > 100 ? "Ціна є завищеною для мас-маркету, рекомендується аргументований торг." : "Пропозиція знаходиться в межах адекватної ринкової норми."}`,
+    investmentRating,
+    investmentExplanation: `Оцінка ${investmentRating}/10 на основі збереження капіталу в металі та рівня націнки.`,
+    pros: pros.length > 0 ? pros : ["Класичний ювелірний виріб", "Гарантія якості металу"],
+    cons: cons.length > 0 ? cons : ["Стандартні ризики роздрібного магазину"],
+    advice: `Запитайте у продавця про діючі акції чи персональну знижку. Запропонуйте ціну зі знижкою ${recommendedDiscount}%, аргументуючи знанням реальної собівартості металу та роботи.`,
+    recommendedDiscountPercent: recommendedDiscount,
+    isFallback: true,
+  };
+}
 
 // Cache for official metal and currency exchange rates
 interface CachedRates {
@@ -188,6 +253,12 @@ app.post("/api/analyze-jewelry", async (req, res) => {
     }
 
     const ai = getAiClient();
+    if (!ai) {
+      return res.status(400).json({
+        error: "Для автоматичного розпізнавання фото потрібен ключ GEMINI_API_KEY. Будь ласка, вкажіть GEMINI_API_KEY у налаштуваннях середовища.",
+      });
+    }
+
     const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
     const promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
@@ -207,17 +278,15 @@ ${userNotes ? `Додаткова інформація від користува
 
     const response = await ai.models.generateContent({
       model: "gemini-3.6-flash",
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              data: cleanBase64,
-              mimeType,
-            },
+      contents: [
+        {
+          inlineData: {
+            data: cleanBase64,
+            mimeType,
           },
-          { text: promptText },
-        ],
-      },
+        },
+        { text: promptText },
+      ],
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -252,7 +321,7 @@ ${userNotes ? `Додаткова інформація від користува
     });
 
     const text = response.text || "{}";
-    const parsedData = JSON.parse(text);
+    const parsedData = safeParseJson(text);
     res.json({ success: true, data: parsedData });
   } catch (error: any) {
     console.error("Error in /api/analyze-jewelry:", error);
@@ -270,6 +339,12 @@ app.post("/api/ai-advice", async (req, res) => {
     }
 
     const ai = getAiClient();
+    if (!ai) {
+      // Return smart rule-based advice as fallback if GEMINI_API_KEY is missing
+      const fallbackAdvice = generateRuleBasedAdvice(calculationDetails);
+      return res.json({ success: true, advice: fallbackAdvice });
+    }
+
     const prompt = `Ти — незалежний ювелірний консультант, експерт з оцінки та інвестиційної цінності прикрас.
 Проаналізуй розрахунок ювелірного виробу:
 - Назва: ${calculationDetails.title}
@@ -311,11 +386,17 @@ app.post("/api/ai-advice", async (req, res) => {
     });
 
     const text = response.text || "{}";
-    const parsedData = JSON.parse(text);
+    const parsedData = safeParseJson(text);
     res.json({ success: true, advice: parsedData });
   } catch (error: any) {
     console.error("Error in /api/ai-advice:", error);
-    res.status(500).json({ error: error?.message || "Помилка генерації порад" });
+    // If Gemini call fails, return fallback rule-based advice instead of failing
+    try {
+      const fallbackAdvice = generateRuleBasedAdvice(req.body.calculationDetails || {});
+      res.json({ success: true, advice: fallbackAdvice });
+    } catch {
+      res.status(500).json({ error: error?.message || "Помилка генерації порад" });
+    }
   }
 });
 

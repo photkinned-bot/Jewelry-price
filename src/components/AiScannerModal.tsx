@@ -20,21 +20,62 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 1200;
+
+        if (width > height && width > MAX_SIZE) {
+          height = Math.round((height * MAX_SIZE) / width);
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width = Math.round((width * MAX_SIZE) / height);
+          height = MAX_SIZE;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Не вдалося створити контекст обробки зображення'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(dataUrl);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Помилка завантаження зображення'));
+      };
+      img.src = url;
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      setError('Файл занадто великий. Будь ласка, оберіть фото до 10 МБ');
+    if (file.size > 20 * 1024 * 1024) {
+      setError('Файл занадто великий. Будь ласка, оберіть фото до 20 МБ');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      setSelectedImage(reader.result as string);
+    try {
+      const compressedDataUrl = await compressImage(file);
+      setSelectedImage(compressedDataUrl);
       setError(null);
-    };
-    reader.readAsDataURL(file);
+    } catch (err: any) {
+      console.error('Image compression error:', err);
+      setError(err?.message || 'Не вдалося обробити фото');
+    }
   };
 
   const handleScan = async () => {
@@ -57,6 +98,12 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
           userNotes,
         }),
       });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        const textErr = await response.text();
+        throw new Error(textErr.slice(0, 150) || 'Некоректна відповідь сервера');
+      }
 
       const json = await response.json();
       if (!response.ok || !json.success) {

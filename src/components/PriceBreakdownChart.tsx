@@ -168,7 +168,7 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
           </div>
           <p className="text-[11px] text-slate-400">
             {result.finishingAndCoatingTotal > 0 ? (
-              <>Вкл. покриття та фактуру ({formatMoney(result.finishingAndCoatingTotal, currency)})</>
+              <>Вкл. покриття, фактуру та гравіювання ({formatMoney(result.finishingAndCoatingTotal, currency)})</>
             ) : (
               <>Виробництво та втрати</>
             )}

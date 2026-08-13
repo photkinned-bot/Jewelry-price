@@ -1,5 +1,6 @@
 import {
   CoatingOption,
+  EngravingOption,
   LaborComplexityOption,
   MetalOption,
   MetalRates,
@@ -36,6 +37,11 @@ export const DEFAULT_METAL_RATES: MetalRates = {
     satin_brushed: { base: 1.5, perGram: 0.4 },
     diamond_cut: { base: 3.0, perGram: 0.8 },
     combined_texture: { base: 3.5, perGram: 0.9 },
+  },
+  engravingRatesUsd: {
+    none: { base: 0 },
+    laser: { base: 8.5 }, // ~$8.50 USD (~350 UAH)
+    hand: { base: 22.0 }, // ~$22.00 USD (~900 UAH)
   },
 };
 
@@ -130,6 +136,30 @@ export const SURFACE_FINISH_OPTIONS: SurfaceFinishOption[] = [
     baseRateUsd: 3.5,
     rateUsdPerGram: 0.9,
     badgeColor: 'bg-purple-500/10 text-purple-300 border-purple-500/30',
+  },
+];
+
+export const ENGRAVING_OPTIONS: EngravingOption[] = [
+  {
+    id: 'none',
+    nameUk: 'Без гравіювання',
+    descriptionUk: 'Без нанесення написів, дат чи символів на виріб',
+    baseRateUsd: 0,
+    badgeColor: 'bg-slate-800 text-slate-300 border-slate-700',
+  },
+  {
+    id: 'laser',
+    nameUk: 'Лазерне гравіювання',
+    descriptionUk: 'Високоточне чітке нанесення тексту, дат або візерунків лазерним променем',
+    baseRateUsd: 8.5,
+    badgeColor: 'bg-purple-500/20 text-purple-300 border-purple-500/40',
+  },
+  {
+    id: 'hand',
+    nameUk: 'Ручне гравіювання',
+    descriptionUk: 'Традиційна майстерна робота ювеліра-гравера штихелем з художнім рельєфом',
+    baseRateUsd: 22.0,
+    badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
   },
 ];
 

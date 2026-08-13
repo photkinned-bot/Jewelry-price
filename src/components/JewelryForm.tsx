@@ -12,11 +12,13 @@ import {
   Paintbrush,
   Disc,
   Info,
+  PenTool,
 } from 'lucide-react';
 import {
   CalculationInputs,
   CoatingType,
   Currency,
+  EngravingType,
   LaborComplexity,
   MetalRates,
   MetalType,
@@ -24,6 +26,7 @@ import {
 } from '../types';
 import {
   COATING_OPTIONS,
+  ENGRAVING_OPTIONS,
   LABOR_COMPLEXITY_OPTIONS,
   METAL_OPTIONS,
   SURFACE_FINISH_OPTIONS,
@@ -48,6 +51,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 }) => {
   const [coatingCurrency, setCoatingCurrency] = useState<'UAH' | 'USD'>('UAH');
   const [finishCurrency, setFinishCurrency] = useState<'UAH' | 'USD'>('UAH');
+  const [engravingCurrency, setEngravingCurrency] = useState<'UAH' | 'USD'>('UAH');
 
   const selectedMetalMeta = METAL_OPTIONS.find((m) => m.id === inputs.metalType) || METAL_OPTIONS[0];
   const uahRate = rates?.currencies?.UAH || 41.5;
@@ -68,6 +72,13 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
   const finishPerGramUsd = rates?.finishRatesUsd?.[surfaceFinish]?.perGram ?? finishOpt.rateUsdPerGram;
   const autoFinishCostUsd = surfaceFinish === 'polished' ? 0 : finishBaseUsd + weight * finishPerGramUsd;
   const autoFinishCostUah = autoFinishCostUsd * uahRate;
+
+  // Auto engraving calculation
+  const engravingType = inputs.engravingType || 'none';
+  const engravingOpt = ENGRAVING_OPTIONS.find((e) => e.id === engravingType) || ENGRAVING_OPTIONS[0];
+  const engravingBaseUsd = rates?.engravingRatesUsd?.[engravingType]?.base ?? engravingOpt.baseRateUsd;
+  const autoEngravingCostUsd = engravingType === 'none' ? 0 : engravingBaseUsd;
+  const autoEngravingCostUah = autoEngravingCostUsd * uahRate;
 
   const handleFieldChange = (fields: Partial<CalculationInputs>) => {
     onChange({ ...inputs, ...fields });
@@ -566,6 +577,148 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                   )}
                 </div>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Engraving Selection (Гравіювання: Лазерне / Ручне) */}
+        <div className="space-y-2 pt-2 border-t border-slate-800/80">
+          <label className="block text-[11px] font-medium text-slate-300 flex items-center justify-between">
+            <span className="flex items-center space-x-1">
+              <PenTool className="w-3.5 h-3.5 text-purple-400" />
+              <span>Гравіювання (Лазерне або Ручне):</span>
+            </span>
+            <span className="text-[10px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/80 font-medium">
+              Автоматична ціна або ручне введення
+            </span>
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {ENGRAVING_OPTIONS.map((eng) => {
+              const isSelected = (inputs.engravingType || 'none') === eng.id;
+              return (
+                <button
+                  key={eng.id}
+                  type="button"
+                  onClick={() => handleFieldChange({ engravingType: eng.id })}
+                  className={`p-2.5 rounded-xl border text-left transition-all flex flex-col justify-between ${
+                    isSelected
+                      ? 'bg-purple-950/50 border-purple-400 ring-1 ring-purple-400/50 text-white shadow-md'
+                      : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold">{eng.nameUk}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                    {eng.descriptionUk}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {inputs.engravingType && inputs.engravingType !== 'none' && (
+            <div className="p-3 bg-slate-800/50 border border-slate-700/60 rounded-xl space-y-3 text-xs">
+              
+              {/* Optional inscription text field */}
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-300 mb-1">
+                  Напис / Текст гравіювання (опціонально):
+                </label>
+                <input
+                  type="text"
+                  placeholder="напр. 'Always & Forever 12.05.2025' або ініціали"
+                  value={inputs.engravingText || ''}
+                  onChange={(e) => handleFieldChange({ engravingText: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-purple-200 focus:outline-none focus:border-purple-400"
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-slate-700/50 pt-2">
+                <div className="space-y-0.5">
+                  <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
+                    <Info className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    Розрахункова (авто) вартість гравіювання:
+                  </span>
+                  <div className="text-[11px] font-mono text-purple-300 font-bold pl-5">
+                    ~{Math.round(autoEngravingCostUah).toLocaleString('uk-UA')} ₴
+                    <span className="text-slate-400 font-normal ml-1">
+                      (${(autoEngravingCostUsd).toFixed(2)} USD)
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:items-end space-y-1">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-slate-400 text-[11px]">Ручне введення ціни:</span>
+
+                    {/* Currency selector tabs for custom input */}
+                    <div className="inline-flex bg-slate-900 p-0.5 rounded-lg border border-slate-700 text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => setEngravingCurrency('UAH')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          engravingCurrency === 'UAH'
+                            ? 'bg-purple-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        ₴ UAH
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEngravingCurrency('USD')}
+                        className={`px-1.5 py-0.5 rounded font-bold transition-colors ${
+                          engravingCurrency === 'USD'
+                            ? 'bg-purple-500 text-slate-950 shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        $ USD
+                      </button>
+                    </div>
+
+                    <input
+                      type="number"
+                      step={engravingCurrency === 'UAH' ? '10' : '1'}
+                      min="0"
+                      placeholder="Авто"
+                      value={
+                        inputs.customEngravingCostUsd !== undefined
+                          ? engravingCurrency === 'UAH'
+                            ? Math.round(inputs.customEngravingCostUsd * uahRate)
+                            : inputs.customEngravingCostUsd
+                          : ''
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          handleFieldChange({ customEngravingCostUsd: undefined });
+                        } else {
+                          const num = Math.max(0, parseFloat(val) || 0);
+                          const usdVal = engravingCurrency === 'UAH' ? num / uahRate : num;
+                          handleFieldChange({ customEngravingCostUsd: usdVal });
+                        }
+                      }}
+                      className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-purple-300 font-mono font-bold focus:outline-none focus:border-purple-400"
+                    />
+                  </div>
+
+                  {inputs.customEngravingCostUsd !== undefined ? (
+                    <span className="text-[10px] text-purple-300 font-mono">
+                      {engravingCurrency === 'UAH'
+                        ? `= $${inputs.customEngravingCostUsd.toFixed(2)} USD (Встановлено вручну)`
+                        : `= ~${Math.round(inputs.customEngravingCostUsd * uahRate)} ₴ UAH (Встановлено вручну)`}
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-slate-400 font-sans">
+                      Застосовано автоматичний розрахунок ціни
+                    </span>
+                  )}
+                </div>
+              </div>
+
             </div>
           )}
         </div>
