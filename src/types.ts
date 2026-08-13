@@ -48,6 +48,8 @@ export type Currency = 'UAH' | 'USD' | 'EUR';
 
 export interface MetalRates {
   updatedAt: string;
+  source?: string;
+  officialSourceUrl?: string;
   currencies: {
     USD: number;
     UAH: number;

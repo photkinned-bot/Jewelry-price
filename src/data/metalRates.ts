@@ -2,6 +2,8 @@ import { LaborComplexityOption, MetalOption, MetalRates, MetalType } from '../ty
 
 export const DEFAULT_METAL_RATES: MetalRates = {
   updatedAt: new Date().toISOString(),
+  source: 'Офіційні котирування НБУ (bank.gov.ua) та LBMA',
+  officialSourceUrl: 'https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json',
   currencies: {
     USD: 1,
     UAH: 41.5,

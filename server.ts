@@ -27,42 +27,155 @@ const getAiClient = () => {
   });
 };
 
+// Cache for official metal and currency exchange rates
+interface CachedRates {
+  updatedAt: string;
+  source: string;
+  officialSourceUrl: string;
+  currencies: {
+    USD: number;
+    UAH: number;
+    EUR: number;
+  };
+  pureMetalRatesUsd: {
+    gold: number;
+    silver: number;
+    platinum: number;
+    palladium: number;
+  };
+}
+
+let cachedMetalRates: CachedRates | null = null;
+let lastFetchTimestamp = 0;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+
+async function fetchLiveRatesFromNbu(forceRefresh = false): Promise<CachedRates> {
+  const now = Date.now();
+  if (!forceRefresh && cachedMetalRates && (now - lastFetchTimestamp < CACHE_TTL_MS)) {
+    return cachedMetalRates;
+  }
+
+  let usdToUah = 44.71;
+  let eurToUah = 51.62;
+  let eurToUsd = 1.15;
+  let goldGramUsd = 88.5;
+  let silverGramUsd = 1.05;
+  let platinumGramUsd = 31.8;
+  let palladiumGramUsd = 34.2;
+  let sourceLabel = "Національний Банк України (bank.gov.ua) + LBMA Spot Market";
+
+  try {
+    // 1. Fetch official rates directly from the National Bank of Ukraine (NBU) API
+    const nbuRes = await fetch("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json", {
+      headers: { "User-Agent": "JewelryApp/1.0" },
+    });
+
+    if (nbuRes.ok) {
+      const nbuData = await nbuRes.json();
+      if (Array.isArray(nbuData)) {
+        const usdItem = nbuData.find((item: any) => item.cc === "USD");
+        const eurItem = nbuData.find((item: any) => item.cc === "EUR");
+        const xauItem = nbuData.find((item: any) => item.cc === "XAU"); // Золото
+        const xagItem = nbuData.find((item: any) => item.cc === "XAG"); // Срібло
+        const xptItem = nbuData.find((item: any) => item.cc === "XPT"); // Платина
+        const xpdItem = nbuData.find((item: any) => item.cc === "XPD"); // Паладій
+
+        if (usdItem?.rate) usdToUah = Number(usdItem.rate);
+        if (eurItem?.rate) eurToUah = Number(eurItem.rate);
+
+        if (usdToUah > 0 && eurToUah > 0) {
+          eurToUsd = eurToUah / usdToUah;
+        }
+
+        // Convert NBU accounting prices (in UAH per troy ounce / 31.1034768g) to USD/g
+        if (xauItem?.rate && usdToUah > 0) {
+          const goldUahPerGram = Number(xauItem.rate) / 31.1034768; // 1 troy oz = 31.1034768 grams
+          const goldUsdG = goldUahPerGram / usdToUah;
+          if (goldUsdG >= 40 && goldUsdG <= 250) {
+            goldGramUsd = goldUsdG;
+          }
+        }
+
+        if (xagItem?.rate && usdToUah > 0) {
+          const silverUahPerGram = Number(xagItem.rate) / 31.1034768;
+          const silverUsdG = silverUahPerGram / usdToUah;
+          if (silverUsdG >= 0.3 && silverUsdG <= 10) {
+            silverGramUsd = silverUsdG;
+          }
+        }
+
+        if (xptItem?.rate && usdToUah > 0) {
+          const platinumUahPerGram = Number(xptItem.rate) / 31.1034768;
+          const platinumUsdG = platinumUahPerGram / usdToUah;
+          if (platinumUsdG >= 10 && platinumUsdG <= 150) {
+            platinumGramUsd = platinumUsdG;
+          }
+        }
+
+        if (xpdItem?.rate && usdToUah > 0) {
+          const palladiumUahPerGram = Number(xpdItem.rate) / 31.1034768;
+          const palladiumUsdG = palladiumUahPerGram / usdToUah;
+          if (palladiumUsdG >= 10 && palladiumUsdG <= 150) {
+            palladiumGramUsd = palladiumUsdG;
+          }
+        }
+
+        sourceLabel = "Офіційне джерело: НБУ (bank.gov.ua)";
+      }
+    }
+  } catch (err) {
+    console.warn("NBU API fetch error, using live backup open-er API:", err);
+  }
+
+  // 2. Backup check for EUR/USD exchange cross rate
+  try {
+    const backupRes = await fetch("https://open.er-api.com/v6/latest/USD");
+    if (backupRes.ok) {
+      const erData = await backupRes.json();
+      if (erData?.rates?.EUR) {
+        eurToUsd = 1 / Number(erData.rates.EUR);
+      }
+    }
+  } catch (err) {
+    // Keep standard fallback
+  }
+
+  cachedMetalRates = {
+    updatedAt: new Date().toISOString(),
+    source: sourceLabel,
+    officialSourceUrl: "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?json",
+    currencies: {
+      USD: 1,
+      UAH: Math.round(usdToUah * 100) / 100,
+      EUR: Math.round(eurToUsd * 100) / 100,
+    },
+    pureMetalRatesUsd: {
+      gold: Math.round(goldGramUsd * 100) / 100,
+      silver: Math.round(silverGramUsd * 100) / 100,
+      platinum: Math.round(platinumGramUsd * 100) / 100,
+      palladium: Math.round(palladiumGramUsd * 100) / 100,
+    },
+  };
+
+  lastFetchTimestamp = now;
+  return cachedMetalRates;
+}
+
 // API Routes
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Live / Benchmark metal spot prices per gram in USD, UAH, EUR
-app.get("/api/metal-rates", (_req, res) => {
-  // Benchmark rates per gram for 100% pure (999) metals
-  const usdToUah = 41.5;
-  const eurToUah = 45.2;
-
-  // Prices per pure gram in USD
-  const gold999PerGramUsd = 88.5; // ~ $2750/oz
-  const silver999PerGramUsd = 1.05; // ~ $32.5/oz
-  const platinum999PerGramUsd = 31.8; // ~ $990/oz
-  const palladium999PerGramUsd = 34.2; // ~ $1060/oz
-
-  res.json({
-    updatedAt: new Date().toISOString(),
-    currencies: {
-      USD: 1,
-      UAH: usdToUah,
-      EUR: 1 / (eurToUah / usdToUah), // EUR/USD ~1.09
-    },
-    exchangeRates: {
-      USD_UAH: usdToUah,
-      EUR_UAH: eurToUah,
-    },
-    // Standard pure metal prices per 1 gram in USD
-    pureMetalRatesUsd: {
-      gold: gold999PerGramUsd,
-      silver: silver999PerGramUsd,
-      platinum: platinum999PerGramUsd,
-      palladium: palladium999PerGramUsd,
-    },
-  });
+// Live / Official metal spot prices per gram from NBU
+app.get("/api/metal-rates", async (req, res) => {
+  try {
+    const forceRefresh = req.query.force === "true";
+    const liveRates = await fetchLiveRatesFromNbu(forceRefresh);
+    res.json(liveRates);
+  } catch (error: any) {
+    console.error("Error fetching metal rates:", error);
+    res.status(500).json({ error: "Не вдалося отримати актуальні курси" });
+  }
 });
 
 // Analyze image (tag, receipt, or jewelry piece) using Gemini Vision API

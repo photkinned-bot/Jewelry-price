@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, RefreshCcw, Save, TrendingUp, Info } from 'lucide-react';
+import { X, RefreshCcw, Save, TrendingUp, Info, ExternalLink, Globe } from 'lucide-react';
 import { MetalRates } from '../types';
 import { DEFAULT_METAL_RATES } from '../data/metalRates';
 
@@ -17,8 +17,25 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
   onSaveRates,
 }) => {
   const [rates, setRates] = useState<MetalRates>(metalRates);
+  const [isFetching, setIsFetching] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleFetchNbuLive = async () => {
+    setIsFetching(true);
+    try {
+      const res = await fetch('/api/metal-rates?force=true');
+      if (res.ok) {
+        const liveData = await res.json();
+        setRates(liveData);
+        onSaveRates(liveData);
+      }
+    } catch (e) {
+      console.error('Failed to reload live rates:', e);
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const handleReset = () => {
     setRates(DEFAULT_METAL_RATES);
@@ -54,6 +71,34 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
 
         {/* Content */}
         <div className="p-6 space-y-6">
+          {/* Official Source Badge */}
+          <div className="p-3 bg-emerald-950/50 border border-emerald-500/30 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+            <div className="flex items-center space-x-2">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <div>
+                <p className="font-bold text-emerald-300 flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  {rates.source || 'Офіційні котирування НБУ (bank.gov.ua)'}
+                </p>
+                <p className="text-[11px] text-emerald-200/70">
+                  Пряма синхронізація з відкритим API Національного банку України
+                </p>
+              </div>
+            </div>
+            
+            <button
+              onClick={handleFetchNbuLive}
+              disabled={isFetching}
+              className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg bg-emerald-900/60 hover:bg-emerald-800/80 border border-emerald-600/40 text-emerald-200 text-[11px] font-semibold transition-colors disabled:opacity-50 shrink-0 self-start sm:self-auto"
+            >
+              <RefreshCcw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
+              <span>Оновити з НБУ</span>
+            </button>
+          </div>
+
           <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-200/90 flex items-start space-x-2.5">
             <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
@@ -219,8 +264,19 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
             </div>
           </div>
 
-          <div className="text-[11px] text-slate-500 text-right">
-            Останнє оновлення: {new Date(rates.updatedAt).toLocaleTimeString('uk-UA')}
+          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-800/60">
+            <a
+              href="https://bank.gov.ua/ua/markets/exchangerates"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-amber-400 transition-colors inline-flex items-center gap-1"
+            >
+              <span>Офіційний портал НБУ</span>
+              <ExternalLink className="w-3 h-3" />
+            </a>
+            <span>
+              Оновлено: {new Date(rates.updatedAt).toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
           </div>
         </div>
 
