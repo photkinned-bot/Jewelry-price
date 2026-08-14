@@ -36,6 +36,7 @@ import {
   SURFACE_FINISH_OPTIONS,
 } from '../data/metalRates';
 import { GemstoneInput } from './GemstoneInput';
+import { InfoHelper } from './InfoHelper';
 import { EMPTY_CALCULATION_INPUTS, SAMPLE_JEWELRY_ITEMS } from '../data/sampleItems';
 
 interface JewelryFormProps {
@@ -171,9 +172,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
       {/* Preset Quick Load Buttons */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-            Швидкі шаблони прикрас для тесту:
-          </label>
+          <div className="flex items-center space-x-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+              Швидкі шаблони прикрас для тесту:
+            </label>
+            <InfoHelper helpKey="quickTemplates" />
+          </div>
           {hasAnyData && (
             <button
               type="button"
@@ -217,9 +221,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
       {/* Basic info: Title, Type, Store/Brand & Product URL */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div className="sm:col-span-2 lg:col-span-1">
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Назва прикраси
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-slate-300">
+              Назва прикраси
+            </label>
+            <InfoHelper helpKey="itemTitle" />
+          </div>
           <input
             type="text"
             placeholder="напр. Каблучка з діамантом"
@@ -230,9 +237,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Тип виробу
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-slate-300">
+              Тип виробу
+            </label>
+            <InfoHelper helpKey="itemType" />
+          </div>
           <select
             value={inputs.itemType}
             onChange={(e) => handleFieldChange({ itemType: e.target.value as any })}
@@ -248,9 +258,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Бренд або магазин (опціонально)
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-slate-300 truncate">
+              Бренд або магазин
+            </label>
+            <InfoHelper helpKey="brandName" />
+          </div>
           <input
             type="text"
             placeholder="напр. Cartier, КЮЗ, Укрзолото"
@@ -263,9 +276,10 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         {/* Посилання на прикрасу в інтернет-магазині */}
         <div className="sm:col-span-2 lg:col-span-3">
           <div className="flex items-center justify-between mb-1">
-            <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+            <label className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
               <Link2 className="w-3.5 h-3.5 text-sky-400" />
               <span>Посилання на прикрасу в інтернет-магазині</span>
+              <InfoHelper helpKey="productUrl" />
             </label>
             {inputs.productUrl ? (
               <span className="text-[10px] text-sky-400 font-medium hidden sm:inline">
@@ -312,9 +326,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 
       {/* Metal selection & Purity */}
       <div className="space-y-3">
-        <label className="block text-xs font-semibold text-slate-300">
-          Вибір Дрогоцінного Металу
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-semibold text-slate-300">
+            Вибір Дорогоцінного Металу
+          </label>
+          <InfoHelper helpKey="metalType" />
+        </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {METAL_OPTIONS.map((meta) => {
@@ -342,9 +359,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         {/* Metal Weight & Purity Select */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Проба металу
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-300">
+                Проба металу
+              </label>
+              <InfoHelper helpKey="metalPurity" />
+            </div>
             <select
               value={inputs.purity}
               onChange={(e) => handleFieldChange({ purity: parseInt(e.target.value) || 585 })}
@@ -359,9 +379,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              Загальна вага виробу (в грамах)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-300">
+                Загальна вага виробу (в грамах)
+              </label>
+              <InfoHelper helpKey="metalWeight" />
+            </div>
             <div className="relative">
               <input
                 type="number"
@@ -393,16 +416,22 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 
       {/* Labor Complexity & Loss / Wastage */}
       <div className="pt-2 border-t border-slate-800 space-y-3">
-        <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
-          <Wrench className="w-4 h-4 text-amber-400" />
-          <span>Складність Ювелірної Роботи та Втрати (Угар)</span>
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
+            <Wrench className="w-4 h-4 text-amber-400" />
+            <span>Складність Ювелірної Роботи та Втрати (Угар)</span>
+          </label>
+          <InfoHelper helpKey="laborComplexity" />
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] text-slate-400 mb-1">
-              Рівень складності виготовлення
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] text-slate-400">
+                Рівень складності виготовлення
+              </label>
+              <InfoHelper helpKey="laborComplexity" />
+            </div>
             <select
               value={inputs.laborComplexity}
               onChange={(e) => {
@@ -424,9 +453,12 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-[11px] text-slate-400 mb-1">
-              Відсоток втрат металу при литті (Угар) %
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-[11px] text-slate-400">
+                Відсоток втрат металу при литті (Угар) %
+              </label>
+              <InfoHelper helpKey="metalWastage" />
+            </div>
             <div className="relative">
               <input
                 type="number"
@@ -455,16 +487,22 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
             <Paintbrush className="w-4 h-4 text-cyan-400" />
             <span>Покриття (Родіювання, Позолота, Чорніння) та Характер Поверхні</span>
           </label>
-          <span className="text-[10px] text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-800/80 font-medium">
-            Авторозрахунок гальваніки
-          </span>
+          <div className="flex items-center space-x-1.5">
+            <span className="text-[10px] text-cyan-300 bg-cyan-950/60 px-2 py-0.5 rounded-full border border-cyan-800/80 font-medium">
+              Авторозрахунок гальваніки
+            </span>
+            <InfoHelper helpKey="coatingSection" />
+          </div>
         </div>
 
         {/* Coating Type Selection */}
         <div className="space-y-2">
-          <label className="block text-[11px] font-medium text-slate-300">
-            Тип покриття виробу:
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-medium text-slate-300">
+              Тип покриття виробу:
+            </label>
+            <InfoHelper helpKey="coatingSection" />
+          </div>
           
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {COATING_OPTIONS.map((coat) => {
@@ -503,6 +541,16 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
                     <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                     Середня вартість нанесення покриття:
+                    <InfoHelper
+                      customItem={{
+                        id: 'coatingPriceFormula',
+                        title: 'Формула вартості покриття (Родій/Позолота)',
+                        category: 'Оздоблення',
+                        whatIsIt: 'Вартість гальванічного покриття складається з базової фіксованої ціни підготовки ванни та витрат реактивів на кожен грам маси виробу.',
+                        priceSource: 'Ринкові розцінки ювелірних гальванічних лабораторій.',
+                        impact: 'Додається до виробничої собівартості. Ви можете вказати власну точну ціну, якщо замовляєте покриття окремо в майстерні.',
+                      }}
+                    />
                   </span>
                   <div className="text-[11px] font-mono text-cyan-300 font-bold pl-5">
                     ~{Math.round(autoCoatingCostUah).toLocaleString('uk-UA')} ₴
@@ -583,10 +631,13 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 
         {/* Surface Finish / Texture Selection */}
         <div className="space-y-2 pt-1">
-          <label className="block text-[11px] font-medium text-slate-300 flex items-center space-x-1">
-            <Disc className="w-3.5 h-3.5 text-amber-400" />
-            <span>Характер поверхні (Текстура / Фактура):</span>
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-medium text-slate-300 flex items-center space-x-1">
+              <Disc className="w-3.5 h-3.5 text-amber-400" />
+              <span>Характер поверхні (Текстура / Фактура):</span>
+            </label>
+            <InfoHelper helpKey="surfaceFinish" />
+          </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {SURFACE_FINISH_OPTIONS.map((finish) => {
@@ -620,6 +671,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
                     <Info className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                     Вартість додаткової фактурної обробки:
+                    <InfoHelper helpKey="surfaceFinish" />
                   </span>
                   <div className="text-[11px] font-mono text-amber-300 font-bold pl-5">
                     ~{Math.round(autoFinishCostUah).toLocaleString('uk-UA')} ₴
@@ -700,15 +752,18 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 
         {/* Engraving Selection (Гравіювання: Лазерне / Ручне) */}
         <div className="space-y-2 pt-2 border-t border-slate-800/80">
-          <label className="block text-[11px] font-medium text-slate-300 flex items-center justify-between">
-            <span className="flex items-center space-x-1">
+          <div className="flex items-center justify-between">
+            <label className="block text-[11px] font-medium text-slate-300 flex items-center space-x-1">
               <PenTool className="w-3.5 h-3.5 text-purple-400" />
               <span>Гравіювання (Лазерне або Ручне):</span>
-            </span>
-            <span className="text-[10px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/80 font-medium">
-              Автоматична ціна або ручне введення
-            </span>
-          </label>
+            </label>
+            <div className="flex items-center space-x-1.5">
+              <span className="text-[10px] text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded-full border border-purple-800/80 font-medium">
+                Автоматична ціна або ручне введення
+              </span>
+              <InfoHelper helpKey="engravingSection" />
+            </div>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {ENGRAVING_OPTIONS.map((eng) => {
@@ -757,6 +812,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                   <span className="text-slate-200 font-semibold flex items-center gap-1.5 text-xs">
                     <Info className="w-3.5 h-3.5 text-purple-400 shrink-0" />
                     Розрахункова (авто) вартість гравіювання:
+                    <InfoHelper helpKey="engravingSection" />
                   </span>
                   <div className="text-[11px] font-mono text-purple-300 font-bold pl-5">
                     ~{Math.round(autoEngravingCostUah).toLocaleString('uk-UA')} ₴
@@ -844,10 +900,13 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
 
       {/* Store Retail Price & Currency */}
       <div className="pt-2 border-t border-slate-800 p-4 bg-amber-950/20 border border-amber-500/20 rounded-xl space-y-3">
-        <label className="block text-xs font-bold text-amber-300 flex items-center space-x-1.5">
-          <DollarSign className="w-4 h-4 text-amber-400" />
-          <span>Ціна Виробу в Магазині (Чек / Цінник)</span>
-        </label>
+        <div className="flex items-center justify-between">
+          <label className="block text-xs font-bold text-amber-300 flex items-center space-x-1.5">
+            <DollarSign className="w-4 h-4 text-amber-400" />
+            <span>Ціна Виробу в Магазині (Чек / Цінник)</span>
+          </label>
+          <InfoHelper helpKey="retailPrice" />
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="sm:col-span-2">

@@ -2,6 +2,7 @@ import React from 'react';
 import { Plus, Trash2, Gem, Info, RefreshCw, DollarSign } from 'lucide-react';
 import { GemOrigin, GemstoneItem, GemType } from '../types';
 import { GEM_OPTIONS_META, calculateGemstoneUsdValue } from '../data/gemstoneValuation';
+import { InfoHelper } from './InfoHelper';
 
 interface GemstoneInputProps {
   gemstones: GemstoneItem[];
@@ -54,6 +55,7 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
         <label className="text-sm font-semibold text-slate-200 flex items-center space-x-1.5">
           <Gem className="w-4 h-4 text-cyan-400" />
           <span>Каміння та вставки ({gemstones.length})</span>
+          <InfoHelper helpKey="gemstonesSection" />
         </label>
         <button
           type="button"
@@ -121,7 +123,10 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                   {/* Type */}
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-0.5">Тип каменя</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[11px] text-slate-400">Тип каменя</label>
+                      <InfoHelper helpKey="gemstoneType" />
+                    </div>
                     <select
                       value={gem.type}
                       onChange={(e) => handleUpdateGem(gem.id, { type: e.target.value as GemType })}
@@ -152,7 +157,10 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                   ) : (
                     /* Origin */
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-0.5">Походження</label>
+                      <div className="flex items-center justify-between mb-0.5">
+                        <label className="block text-[11px] text-slate-400">Походження</label>
+                        <InfoHelper helpKey="gemstoneOrigin" />
+                      </div>
                       <select
                         value={gem.origin}
                         onChange={(e) => handleUpdateGem(gem.id, { origin: e.target.value as GemOrigin })}
@@ -167,7 +175,10 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
 
                   {/* Count */}
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-0.5">Кількість (шт)</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[11px] text-slate-400">Кількість (шт)</label>
+                      <InfoHelper helpKey="gemstoneCount" />
+                    </div>
                     <input
                       type="number"
                       min="1"
@@ -183,9 +194,12 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
 
                   {/* Carats per stone */}
                   <div>
-                    <label className="block text-[11px] text-slate-400 mb-0.5">
-                      Вага 1 каменя (ct / карат)
-                    </label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[11px] text-slate-400">
+                        Вага 1 каменя (ct)
+                      </label>
+                      <InfoHelper helpKey="gemstoneCarat" />
+                    </div>
                     <input
                       type="number"
                       step="0.01"
@@ -204,7 +218,10 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                 {/* Additional characteristics & Manual Price Override */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 border-t border-slate-800/60">
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Колір (Color)</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[10px] text-slate-400">Колір (Color)</label>
+                      <InfoHelper helpKey="gemstone4Cs" />
+                    </div>
                     <input
                       type="text"
                       placeholder="напр. D, G, 4"
@@ -215,7 +232,10 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                   </div>
 
                   <div>
-                    <label className="block text-[10px] text-slate-400 mb-0.5">Чистота (Clarity)</label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[10px] text-slate-400">Чистота (Clarity)</label>
+                      <InfoHelper helpKey="gemstone4Cs" />
+                    </div>
                     <input
                       type="text"
                       placeholder="напр. VVS2, VS1, 3/4"
@@ -227,10 +247,13 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
 
                   {/* Manual price override */}
                   <div>
-                    <label className="block text-[10px] text-amber-300 mb-0.5 font-medium flex items-center gap-1">
-                      <DollarSign className="w-3 h-3 text-amber-400" />
-                      <span>Власники/ручна ціна за каміння ($ USD)</span>
-                    </label>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <label className="block text-[10px] text-amber-300 font-medium flex items-center gap-1">
+                        <DollarSign className="w-3 h-3 text-amber-400" />
+                        <span>Ручна ціна ($ USD)</span>
+                      </label>
+                      <InfoHelper helpKey="gemstoneCustomPrice" />
+                    </div>
                     <input
                       type="number"
                       placeholder={`Авто: $${estimatedUsd}`}
