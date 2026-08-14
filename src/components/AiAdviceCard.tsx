@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles, Bot, ThumbsUp, AlertTriangle, MessageSquare, RefreshCw, Award } from 'lucide-react';
 import { AiAdviceResult, CalculationInputs, CalculationResult } from '../types';
+import { getAiAdviceClientSide } from '../lib/geminiClientService';
 
 interface AiAdviceCardProps {
   inputs: CalculationInputs;
@@ -15,49 +16,62 @@ export const AiAdviceCard: React.FC<AiAdviceCardProps> = ({ inputs, result }) =>
   const fetchAdvice = async () => {
     setLoading(true);
     setError(null);
+
+    const calculationDetails = {
+      title: inputs.title || 'Ювелірний виріб',
+      metalType: inputs.metalType,
+      metalPurity: inputs.purity,
+      metalWeight: inputs.metalWeightGrams,
+      materialsCost: result.rawMaterialsTotal,
+      laborCost: result.laborAndLossesTotal,
+      costBasis: result.productionCostTotal,
+      retailPrice: result.retailPrice,
+      markupAmount: result.markupAmount,
+      markupPercent: result.markupPercent,
+      markupRatio: result.markupRatio,
+      currency: inputs.currency,
+      gemstones: inputs.gemstones,
+    };
+
+    let fetchedAdvice: AiAdviceResult | null = null;
+
+    // 1. Try server API
     try {
       const response = await fetch('/api/ai-advice', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          calculationDetails: {
-            title: inputs.title || 'Ювелірний виріб',
-            metalType: inputs.metalType,
-            metalPurity: inputs.purity,
-            metalWeight: inputs.metalWeightGrams,
-            materialsCost: result.rawMaterialsTotal,
-            laborCost: result.laborAndLossesTotal,
-            costBasis: result.productionCostTotal,
-            retailPrice: result.retailPrice,
-            markupAmount: result.markupAmount,
-            markupPercent: result.markupPercent,
-            markupRatio: result.markupRatio,
-            currency: inputs.currency,
-            gemstones: inputs.gemstones,
-          },
-        }),
+        body: JSON.stringify({ calculationDetails }),
       });
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const textErr = await response.text();
-        throw new Error(textErr.slice(0, 150) || 'Помилка отримання даних від сервера');
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await response.json();
+          if (json.success && json.advice) {
+            fetchedAdvice = json.advice;
+          }
+        }
       }
-
-      const json = await response.json();
-      if (!response.ok || !json.success) {
-        throw new Error(json.error || 'Не вдалося отримати консультацію від AI');
-      }
-
-      setAdvice(json.advice);
-    } catch (err: any) {
-      console.error('Error getting AI advice:', err);
-      setError(err?.message || 'Помилка звернення до AI');
-    } finally {
-      setLoading(false);
+    } catch (serverErr) {
+      console.info('Server API unavailable, falling back to browser-side AI analysis:', serverErr);
     }
+
+    // 2. Fallback to client-side Gemini or rule-based advice (for GitHub Pages static host)
+    if (!fetchedAdvice) {
+      try {
+        fetchedAdvice = await getAiAdviceClientSide(calculationDetails);
+      } catch (clientErr: any) {
+        console.error('Client advice error:', clientErr);
+        setError('Помилка генерації висновку AI');
+      }
+    }
+
+    if (fetchedAdvice) {
+      setAdvice(fetchedAdvice);
+    }
+    setLoading(false);
   };
 
   return (

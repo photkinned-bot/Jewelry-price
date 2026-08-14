@@ -1,16 +1,29 @@
 <!doctype html>
-<html lang="en">
+<html lang="uk" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
-    <meta name="description" content="An application built with Google AI Studio." />
-    <meta property="og:title" content="My Google AI Studio App" />
-    <meta property="og:description" content="An application built with Google AI Studio." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Ювелірний Калькулятор Прозорості | AI Оцінка Прикрас</title>
+    <meta name="description" content="Аналіз реальної собівартості ювелірних прикрас, оцінка каміння, металів, націнки бренду та AI сканер бирок." />
+    
+    <!-- PWA & Mobile Web App Meta Tags -->
+    <meta name="theme-color" content="#020617" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Ювелірний Калькулятор" />
+    
+    <!-- Icons & Manifest -->
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+    <link rel="apple-touch-icon" href="./icon.svg" />
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Ювелірний Калькулятор Прозорості" />
+    <meta property="og:description" content="Дізнайся реальну вартість металу, каміння та націнку бренду з AI сканером бирок." />
     <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
   </head>
-  <body>
+  <body class="bg-slate-950 text-slate-100 min-h-screen antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

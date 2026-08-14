@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import {
-  Header,
-} from './components/Header';
+import { Header } from './components/Header';
 import { JewelryForm } from './components/JewelryForm';
 import { PriceBreakdownChart } from './components/PriceBreakdownChart';
 import { MarkupGauge } from './components/MarkupGauge';
@@ -12,12 +10,15 @@ import { AiScannerModal } from './components/AiScannerModal';
 import { ComparisonView } from './components/ComparisonView';
 import { HistoryDrawer } from './components/HistoryDrawer';
 import { JewelryGuideModal } from './components/JewelryGuideModal';
+import { ApiKeySettingsModal } from './components/ApiKeySettingsModal';
+import { PwaGuideModal } from './components/PwaGuideModal';
 
 import { CalculationInputs, Currency, MetalRates, SavedCalculation } from './types';
 import { DEFAULT_METAL_RATES } from './data/metalRates';
+import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
 import { SAMPLE_JEWELRY_ITEMS } from './data/sampleItems';
-import { Save, History, Sparkles, Scale, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Save, History, Scale, CheckCircle2 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
 
@@ -44,6 +45,8 @@ export default function App() {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isComparisonOpen, setIsComparisonOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isApiKeySettingsOpen, setIsApiKeySettingsOpen] = useState(false);
+  const [isPwaGuideOpen, setIsPwaGuideOpen] = useState(false);
   const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
 
   // Sync saved calculations to localStorage
@@ -55,23 +58,20 @@ export default function App() {
     }
   }, [savedCalculations]);
 
-  // Fetch live metal rates from server API on mount
+  // Fetch live metal rates on mount (supports server API and GitHub Pages client fallback)
   useEffect(() => {
-    async function fetchLiveRates() {
+    async function loadInitialRates() {
       try {
-        const res = await fetch('/api/metal-rates');
-        if (res.ok) {
-          const data = await res.json();
-          setMetalRates((prev) => ({
-            ...prev,
-            ...data,
-          }));
-        }
+        const ratesData = await fetchLiveRates(false);
+        setMetalRates((prev) => ({
+          ...prev,
+          ...ratesData,
+        }));
       } catch (err) {
         console.warn('Could not load live rates, using defaults:', err);
       }
     }
-    fetchLiveRates();
+    loadInitialRates();
   }, []);
 
   // Compute live breakdown result whenever inputs, currency or metal rates change
@@ -125,6 +125,8 @@ export default function App() {
         onOpenScanner={() => setIsScannerOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}
         onOpenComparison={() => setIsComparisonOpen(true)}
+        onOpenApiKeySettings={() => setIsApiKeySettingsOpen(true)}
+        onOpenPwaGuide={() => setIsPwaGuideOpen(true)}
         savedCount={savedCalculations.length}
       />
 
@@ -257,6 +259,16 @@ export default function App() {
       <JewelryGuideModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      <ApiKeySettingsModal
+        isOpen={isApiKeySettingsOpen}
+        onClose={() => setIsApiKeySettingsOpen(false)}
+      />
+
+      <PwaGuideModal
+        isOpen={isPwaGuideOpen}
+        onClose={() => setIsPwaGuideOpen(false)}
       />
 
     </div>

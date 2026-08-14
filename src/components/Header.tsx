@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gem, Sparkles, Scale, RefreshCw, BookOpen, Layers, BarChart2 } from 'lucide-react';
+import { Gem, Sparkles, RefreshCw, BookOpen, BarChart2, Key, Tablet } from 'lucide-react';
 import { Currency, MetalRates } from '../types';
 import { formatMoney } from '../data/metalRates';
 
@@ -11,6 +11,8 @@ interface HeaderProps {
   onOpenScanner: () => void;
   onOpenGuide: () => void;
   onOpenComparison: () => void;
+  onOpenApiKeySettings: () => void;
+  onOpenPwaGuide: () => void;
   savedCount: number;
 }
 
@@ -22,6 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenScanner,
   onOpenGuide,
   onOpenComparison,
+  onOpenApiKeySettings,
+  onOpenPwaGuide,
   savedCount,
 }) => {
   const goldPriceDisplay = formatMoney(
@@ -110,6 +114,26 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </button>
 
+            {/* API Key Settings Button */}
+            <button
+              onClick={onOpenApiKeySettings}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition-colors"
+              title="Налаштування Gemini API Key"
+            >
+              <Key className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden lg:inline">Ключ AI</span>
+            </button>
+
+            {/* iPad / PWA Guide */}
+            <button
+              onClick={onOpenPwaGuide}
+              className="flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition-colors"
+              title="Як зберегти на початковий екран iPad / Safari"
+            >
+              <Tablet className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden xl:inline">iPad App</span>
+            </button>
+
             {/* Buyer Guide Modal */}
             <button
               onClick={onOpenGuide}
@@ -117,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
               title="Гайд покупця: як перевіряти проби, 4C діамантів та націнки"
             >
               <BookOpen className="w-3.5 h-3.5 text-sky-400" />
-              <span className="hidden sm:inline">Гайд Покупця</span>
+              <span className="hidden sm:inline">Гайд</span>
             </button>
 
           </div>

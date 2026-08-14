@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { X, Upload, Camera, Sparkles, AlertCircle, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Upload, Camera, Sparkles, AlertCircle, RefreshCw, Key, CheckCircle2 } from 'lucide-react';
 import { CalculationInputs } from '../types';
+import { analyzeJewelryImageClientSide, getStoredUserApiKey, saveUserApiKey } from '../lib/geminiClientService';
 
 interface AiScannerModalProps {
   isOpen: boolean;
@@ -17,6 +18,16 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
   const [userNotes, setUserNotes] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Key input state for GitHub Pages / static hosting
+  const [apiKeyInput, setApiKeyInput] = useState<string>('');
+  const [showKeyPrompt, setShowKeyPrompt] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      setApiKeyInput(getStoredUserApiKey());
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -87,6 +98,9 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
     setLoading(true);
     setError(null);
 
+    let mappedInputs: Partial<CalculationInputs> | null = null;
+
+    // 1. First attempt via Express server API
     try {
       const response = await fetch('/api/analyze-jewelry', {
         method: 'POST',
@@ -99,56 +113,85 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
         }),
       });
 
-      const contentType = response.headers.get('content-type') || '';
-      if (!contentType.includes('application/json')) {
-        const textErr = await response.text();
-        throw new Error(textErr.slice(0, 150) || 'Некоректна відповідь сервера');
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const json = await response.json();
+          if (json.success && json.data) {
+            const data = json.data;
+            mappedInputs = {
+              title: data.title || 'Ювелірний виріб з фото',
+              itemType: data.itemType || 'ring',
+              metalType: (['gold', 'silver', 'platinum', 'palladium'].includes(data.metalType)
+                ? data.metalType
+                : 'gold') as any,
+              purity: typeof data.purity === 'number' ? data.purity : 585,
+              metalWeightGrams: typeof data.metalWeightGrams === 'number' ? data.metalWeightGrams : 4.0,
+              retailPrice: typeof data.price === 'number' ? data.price : 0,
+              brandName: data.brand || '',
+              currency: (['UAH', 'USD', 'EUR'].includes(data.currency) ? data.currency : 'UAH') as any,
+              notes: data.aiNotes || '',
+              photoUrl: selectedImage,
+            };
+
+            if (Array.isArray(data.gemstones) && data.gemstones.length > 0) {
+              mappedInputs.gemstones = data.gemstones.map((g: any, i: number) => ({
+                id: 'scanned-gem-' + i + '-' + Date.now(),
+                type: g.type?.toLowerCase().includes('діамант') ? 'diamond' : 'other',
+                nameUk: g.type || 'Вставка',
+                count: typeof g.count === 'number' ? g.count : 1,
+                caratsPerStone: typeof g.carats === 'number' ? g.carats : 0.05,
+                origin: g.origin || 'natural',
+                clarityQuality: g.clarity || '',
+                colorQuality: g.color || '',
+              }));
+            }
+          }
+        }
       }
+    } catch (serverErr) {
+      console.info('Server API unavailable, falling back to direct browser client scanning:', serverErr);
+    }
 
-      const json = await response.json();
-      if (!response.ok || !json.success) {
-        throw new Error(json.error || 'Не вдалося розпізнати фото');
+    // 2. If server API returned 405 Method Not Allowed or failed (e.g. GitHub Pages static host), call client Gemini API
+    if (!mappedInputs) {
+      try {
+        mappedInputs = await analyzeJewelryImageClientSide(
+          selectedImage,
+          userNotes,
+          apiKeyInput
+        );
+      } catch (clientErr: any) {
+        if (clientErr?.message === 'NO_API_KEY_GITHUB_PAGES') {
+          setShowKeyPrompt(true);
+          setError('Для AI розпізнавання введіть ваш безкоштовний API ключ Google у полі нижче.');
+          setLoading(false);
+          return;
+        } else {
+          console.error('Client scan error:', clientErr);
+          setError(clientErr?.message || 'Помилка розпізнавання фото');
+          setLoading(false);
+          return;
+        }
       }
+    }
 
-      const data = json.data;
-
-      // Map AI returned JSON into CalculationInputs shape
-      const mappedInputs: Partial<CalculationInputs> = {
-        title: data.title || 'Ювелірний виріб з фото',
-        itemType: data.itemType || 'ring',
-        metalType: (['gold', 'silver', 'platinum', 'palladium'].includes(data.metalType)
-          ? data.metalType
-          : 'gold') as any,
-        purity: typeof data.purity === 'number' ? data.purity : 585,
-        metalWeightGrams: typeof data.metalWeightGrams === 'number' ? data.metalWeightGrams : 4.0,
-        retailPrice: typeof data.price === 'number' ? data.price : 0,
-        brandName: data.brand || '',
-        currency: (['UAH', 'USD', 'EUR'].includes(data.currency) ? data.currency : 'UAH') as any,
-        notes: data.aiNotes || '',
-        photoUrl: selectedImage,
-      };
-
-      if (Array.isArray(data.gemstones) && data.gemstones.length > 0) {
-        mappedInputs.gemstones = data.gemstones.map((g: any, i: number) => ({
-          id: 'scanned-gem-' + i + '-' + Date.now(),
-          type: g.type?.toLowerCase().includes('діамант') ? 'diamond' : 'other',
-          nameUk: g.type || 'Вставка',
-          count: typeof g.count === 'number' ? g.count : 1,
-          caratsPerStone: typeof g.carats === 'number' ? g.carats : 0.05,
-          origin: g.origin || 'natural',
-          clarityQuality: g.clarity || '',
-          colorQuality: g.color || '',
-        }));
-      }
-
+    if (mappedInputs) {
       onApplyData(mappedInputs);
       onClose();
-    } catch (err: any) {
-      console.error('Scan error:', err);
-      setError(err?.message || 'Помилка сканування');
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
+  };
+
+  const handleSaveKeyAndRetry = async () => {
+    if (!apiKeyInput.trim()) {
+      setError('Введіть Gemini API Key');
+      return;
+    }
+    saveUserApiKey(apiKeyInput.trim());
+    setShowKeyPrompt(false);
+    setError(null);
+    handleScan();
   };
 
   return (
@@ -178,7 +221,7 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
           </p>
 
           {/* Upload Dropzone */}
-          <div className="relative border-2 border-dashed border-slate-700 hover:border-amber-400 rounded-xl p-4 text-center transition-colors bg-slate-950/50">
+          <div className="relative border-2 border-dashed border-slate-700 hover:border-amber-400 rounded-xl p-5 text-center transition-colors bg-slate-950/50">
             {selectedImage ? (
               <div className="space-y-3">
                 <img
@@ -194,23 +237,42 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
                 </button>
               </div>
             ) : (
-              <label className="cursor-pointer flex flex-col items-center justify-center py-6 space-y-2">
-                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-amber-400">
+              <div className="flex flex-col items-center justify-center space-y-3 py-3">
+                <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-amber-400 shadow-inner">
                   <Camera className="w-6 h-6" />
                 </div>
                 <div className="text-xs font-semibold text-slate-200">
-                  Натисніть або перетягніть фото сюди
+                  Завантажте фото бирки або зробіть знімок
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  JPG, PNG, WEBP до 10 МБ
+                  Підтримуються JPG, PNG, WEBP до 20 МБ
                 </div>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </label>
+
+                <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                  <label className="cursor-pointer flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium text-xs transition-colors">
+                    <Upload className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Обрати з галереї</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+
+                  <label className="cursor-pointer flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-medium text-xs transition-colors">
+                    <Camera className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Зробити фото камерою</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
             )}
           </div>
 
@@ -226,6 +288,44 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
               onChange={(e) => setUserNotes(e.target.value)}
               className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-amber-400"
             />
+          </div>
+
+          {/* Clean API Key Selector / Input */}
+          <div className="p-3.5 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-2 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                <Key className="w-3.5 h-3.5 text-amber-400" />
+                <span>Налаштування AI сканування</span>
+              </span>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-amber-400 hover:text-amber-300 font-medium underline flex items-center gap-1"
+              >
+                Отримати API ключ Google
+              </a>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center space-x-2">
+                <input
+                  type="password"
+                  placeholder="Вставити власний Google Gemini API Key (за бажанням)"
+                  value={apiKeyInput}
+                  onChange={(e) => {
+                    setApiKeyInput(e.target.value);
+                    saveUserApiKey(e.target.value);
+                  }}
+                  className="flex-1 bg-slate-900 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 font-mono"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                {apiKeyInput.trim()
+                  ? 'Використовується ваш персональний API ключ'
+                  : 'За замовчуванням використовується вбудований сервіс AI розпізнавання'}
+              </p>
+            </div>
           </div>
 
           {error && (

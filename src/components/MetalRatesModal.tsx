@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, RefreshCcw, Save, TrendingUp, Info, ExternalLink, Globe, Paintbrush } from 'lucide-react';
 import { MetalRates } from '../types';
 import { COATING_OPTIONS, DEFAULT_METAL_RATES, SURFACE_FINISH_OPTIONS } from '../data/metalRates';
+import { fetchLiveRates } from '../lib/rateService';
 
 interface MetalRatesModalProps {
   isOpen: boolean;
@@ -24,12 +25,9 @@ export const MetalRatesModal: React.FC<MetalRatesModalProps> = ({
   const handleFetchNbuLive = async () => {
     setIsFetching(true);
     try {
-      const res = await fetch('/api/metal-rates?force=true');
-      if (res.ok) {
-        const liveData = await res.json();
-        setRates(liveData);
-        onSaveRates(liveData);
-      }
+      const liveData = await fetchLiveRates(true);
+      setRates(liveData);
+      onSaveRates(liveData);
     } catch (e) {
       console.error('Failed to reload live rates:', e);
     } finally {
