@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Award, Trash2, Tag, ExternalLink } from 'lucide-react';
+import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2 } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { ModalDialog } from './ModalDialog';
@@ -11,6 +11,7 @@ interface ComparisonViewProps {
   currency: Currency;
   onDeleteSaved: (id: string) => void;
   onSelectCalculatedItem: (item: SavedCalculation) => void;
+  onShareItem?: (item: SavedCalculation) => void;
 }
 
 export const ComparisonView: React.FC<ComparisonViewProps> = ({
@@ -20,6 +21,7 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   currency,
   onDeleteSaved,
   onSelectCalculatedItem,
+  onShareItem,
 }) => {
   if (!isOpen) return null;
 
@@ -204,19 +206,34 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
 
                   {/* Action */}
                   <tr>
-                    <td className="py-3 px-3"></td>
+                    <td className="py-3 px-3 font-semibold text-slate-400">Дії</td>
                     {savedItems.map((item) => (
                       <td key={item.id} className="py-3 px-3">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onSelectCalculatedItem(item);
-                            onClose();
-                          }}
-                          className="w-full py-1.5 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs transition-colors"
-                        >
-                          Завантажити
-                        </button>
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onSelectCalculatedItem(item);
+                              onClose();
+                            }}
+                            className="w-full py-1.5 px-2.5 rounded-lg bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs transition-colors"
+                          >
+                            Завантажити
+                          </button>
+
+                          {onShareItem && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onShareItem(item);
+                              }}
+                              className="w-full py-1 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-medium text-[11px] transition-colors flex items-center justify-center gap-1 border border-slate-700"
+                            >
+                              <Share2 className="w-3 h-3 text-amber-400" />
+                              <span>Поділитися</span>
+                            </button>
+                          )}
+                        </div>
                       </td>
                     ))}
                   </tr>

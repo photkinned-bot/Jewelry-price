@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Trash2, Download, Printer, Tag, Calendar, ChevronRight, ExternalLink } from 'lucide-react';
+import { X, Trash2, Download, Printer, Tag, Calendar, ChevronRight, ExternalLink, Share2 } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 
@@ -9,6 +9,7 @@ interface HistoryDrawerProps {
   savedItems: SavedCalculation[];
   currency: Currency;
   onLoadItem: (item: SavedCalculation) => void;
+  onShareItem?: (item: SavedCalculation) => void;
   onDeleteItem: (id: string) => void;
   onClearAll: () => void;
 }
@@ -19,6 +20,7 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   savedItems,
   currency,
   onLoadItem,
+  onShareItem,
   onDeleteItem,
   onClearAll,
 }) => {
@@ -158,17 +160,34 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                   </a>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    onLoadItem(item);
-                    onClose();
-                  }}
-                  className="w-full py-2 rounded-lg bg-amber-500/10 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1 mt-1 active:scale-95"
-                >
-                  <span>Відкрити у калькуляторі</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onShareItem) {
+                        onShareItem(item);
+                      }
+                    }}
+                    className="py-2 px-2.5 rounded-lg bg-slate-700/80 hover:bg-slate-700 hover:text-white text-slate-300 font-semibold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95 border border-slate-600/60"
+                    title="Поділитися цим збереженим розрахунком"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Поділитися</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onLoadItem(item);
+                      onClose();
+                    }}
+                    className="py-2 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500 text-amber-300 hover:text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1 active:scale-95 border border-amber-500/30"
+                    title="Завантажити в робочу область калькулятора"
+                  >
+                    <span>Відкрити</span>
+                    <ChevronRight className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                </div>
               </div>
             ))
           )}

@@ -12,13 +12,15 @@ import { HistoryDrawer } from './components/HistoryDrawer';
 import { JewelryGuideModal } from './components/JewelryGuideModal';
 import { ApiKeySettingsModal } from './components/ApiKeySettingsModal';
 import { PwaGuideModal } from './components/PwaGuideModal';
+import { ShareModal } from './components/ShareModal';
 
-import { CalculationInputs, Currency, MetalRates, SavedCalculation } from './types';
+import { CalculationInputs, Currency, MetalRates, SavedCalculation, CalculationResult } from './types';
 import { DEFAULT_METAL_RATES } from './data/metalRates';
 import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
 import { EMPTY_CALCULATION_INPUTS } from './data/sampleItems';
-import { Save, History, Scale, CheckCircle2 } from 'lucide-react';
+import { parseShareUrlFromLocation } from './lib/shareService';
+import { Save, History, Scale, CheckCircle2, Share2, Sparkles, X } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
 
@@ -48,7 +50,29 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isApiKeySettingsOpen, setIsApiKeySettingsOpen] = useState(false);
   const [isPwaGuideOpen, setIsPwaGuideOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [shareTargetItem, setShareTargetItem] = useState<{
+    inputs: CalculationInputs;
+    result: CalculationResult;
+    currency: Currency;
+  } | null>(null);
+
   const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
+  const [sharedBannerNotice, setSharedBannerNotice] = useState<{ title: string } | null>(null);
+
+  // Check URL on startup for shared calculation parameters (?calc=...)
+  useEffect(() => {
+    const sharedData = parseShareUrlFromLocation();
+    if (sharedData && sharedData.inputs) {
+      setInputs(sharedData.inputs);
+      if (sharedData.currency) {
+        setCurrency(sharedData.currency);
+      }
+      setSharedBannerNotice({
+        title: sharedData.inputs.title || 'Ювелірний виріб',
+      });
+    }
+  }, []);
 
   // Sync saved calculations to localStorage
   useEffect(() => {
@@ -82,6 +106,24 @@ export default function App() {
       metalRates
     );
   }, [inputs, currency, metalRates]);
+
+  // Open share modal for current active item or a specific saved item
+  const handleOpenShareModal = (savedItem?: SavedCalculation) => {
+    if (savedItem) {
+      setShareTargetItem({
+        inputs: savedItem.inputs,
+        result: savedItem.result,
+        currency: savedItem.inputs.currency || currency,
+      });
+    } else {
+      setShareTargetItem({
+        inputs,
+        result,
+        currency,
+      });
+    }
+    setIsShareModalOpen(true);
+  };
 
   // Save current item to history
   const handleSaveCalculation = () => {
@@ -152,12 +194,23 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+            
+            {/* Share Button (Primary) */}
+            <button
+              onClick={() => handleOpenShareModal()}
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all active:scale-95"
+              title="Поділитися поточним розрахунком через соцмережі або посиланням"
+            >
+              <Share2 className="w-3.5 h-3.5 text-slate-950" />
+              <span>Поділитися</span>
+            </button>
+
             <button
               onClick={handleSaveCalculation}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/10 transition-all active:scale-95"
+              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-750 text-slate-200 hover:text-white font-semibold text-xs shadow-sm transition-all active:scale-95"
             >
-              <Save className="w-3.5 h-3.5" />
-              <span>Зберегти в історію</span>
+              <Save className="w-3.5 h-3.5 text-amber-400" />
+              <span>Зберегти</span>
             </button>
 
             <button
@@ -169,6 +222,48 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {/* Incoming Shared Calculation Welcome Banner */}
+        {sharedBannerNotice && (
+          <div className="p-4 bg-gradient-to-r from-amber-950/50 via-slate-900 to-slate-900 border border-amber-500/40 rounded-2xl text-xs text-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-start sm:items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-white text-sm">
+                    Відкрито спільний розрахунок: «{sharedBannerNotice.title}»
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-semibold text-[10px] border border-amber-500/30">
+                    Спільне посилання
+                  </span>
+                </div>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Ви можете переглянути повну розбивку ціни, змінити параметри або зберегти розрахунок до своєї історії.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
+              <button
+                type="button"
+                onClick={handleSaveCalculation}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition-all shadow-md shadow-amber-500/10 active:scale-95"
+              >
+                Зберегти собі в історію
+              </button>
+              <button
+                type="button"
+                onClick={() => setSharedBannerNotice(null)}
+                className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                title="Закрити сповіщення"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Save success toast banner */}
         {saveSuccessNotice && (
@@ -198,7 +293,11 @@ export default function App() {
           <div className="lg:col-span-7 space-y-6">
             
             {/* 1. Markup Meter / Gauge */}
-            <MarkupGauge result={result} currency={currency} />
+            <MarkupGauge
+              result={result}
+              currency={currency}
+              onShare={() => handleOpenShareModal()}
+            />
 
             {/* 2. Recharts Price Breakdown */}
             <PriceBreakdownChart result={result} currency={currency} />
@@ -251,6 +350,7 @@ export default function App() {
           setSelectedTemplateId(null);
           setInputs(item.inputs);
         }}
+        onShareItem={(item) => handleOpenShareModal(item)}
       />
 
       <HistoryDrawer
@@ -262,6 +362,7 @@ export default function App() {
           setSelectedTemplateId(null);
           setInputs(item.inputs);
         }}
+        onShareItem={(item) => handleOpenShareModal(item)}
         onDeleteItem={handleDeleteSaved}
         onClearAll={handleClearAllSaved}
       />
@@ -281,6 +382,16 @@ export default function App() {
         onClose={() => setIsPwaGuideOpen(false)}
       />
 
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        inputs={shareTargetItem?.inputs || inputs}
+        result={shareTargetItem?.result || result}
+        currency={shareTargetItem?.currency || currency}
+      />
+
     </div>
   );
 }
+

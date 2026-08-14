@@ -1,5 +1,5 @@
 import React from 'react';
-import { Percent, TrendingUp, AlertTriangle, CheckCircle, ShieldAlert, Award } from 'lucide-react';
+import { Percent, TrendingUp, AlertTriangle, CheckCircle, ShieldAlert, Award, Share2 } from 'lucide-react';
 import { CalculationResult, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { InfoHelper } from './InfoHelper';
@@ -7,9 +7,10 @@ import { InfoHelper } from './InfoHelper';
 interface MarkupGaugeProps {
   result: CalculationResult;
   currency: Currency;
+  onShare?: () => void;
 }
 
-export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency }) => {
+export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency, onShare }) => {
   const { markupPercent, markupRatio, markupCategory, productionCostTotal, retailPrice, markupAmount } = result;
 
   // Category Configuration
@@ -65,12 +66,26 @@ export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency }) =>
           </p>
         </div>
 
-        <div className="flex items-center space-x-1.5">
-          <span className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center space-x-1.5 ${categoryConfig.badgeClass}`}>
-            <CategoryIcon className="w-3.5 h-3.5 shrink-0" />
-            <span>{categoryConfig.titleUk}</span>
-          </span>
-          <InfoHelper helpKey="markupCategoryScale" />
+        <div className="flex items-center space-x-2">
+          {onShare && (
+            <button
+              type="button"
+              onClick={onShare}
+              className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-amber-300 hover:text-white transition-all shadow-sm active:scale-95"
+              title="Поділитися цим розрахунком"
+            >
+              <Share2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Поділитися</span>
+            </button>
+          )}
+
+          <div className="flex items-center space-x-1.5">
+            <span className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center space-x-1.5 ${categoryConfig.badgeClass}`}>
+              <CategoryIcon className="w-3.5 h-3.5 shrink-0" />
+              <span>{categoryConfig.titleUk}</span>
+            </span>
+            <InfoHelper helpKey="markupCategoryScale" />
+          </div>
         </div>
       </div>
 
