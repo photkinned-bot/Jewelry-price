@@ -131,8 +131,9 @@ const SHORT_TO_GEM_MAP: Record<string, GemType> = {
 };
 
 /**
- * Encodes gemstones into an ultra-compact string:
- * Format: type.count.carats.origin.customPrice.customName.color.clarity
+ * Encodes gemstones into an ultra-compact, robust string:
+ * Format per gem: type~count~carats~origin~customTotalPrice~customPricePerCarat~customName~color~clarity
+ * Separator between gems: ';'
  */
 function serializeGemstones(gemstones?: GemstoneItem[]): string {
   if (!gemstones || gemstones.length === 0) return '';
@@ -140,20 +141,27 @@ function serializeGemstones(gemstones?: GemstoneItem[]): string {
     .map((g) => {
       const shortType = GEM_SHORT_MAP[g.type] || g.type || 'd';
       const originCode = g.origin === 'lab' ? 'l' : g.origin === 'synthetic' ? 's' : 'n';
-      const customPriceStr =
-        g.customTotalPriceUsd !== undefined && g.customTotalPriceUsd !== null
+      const count = g.count || 1;
+      const carats = g.caratsPerStone || 0;
+      const customTotalPriceStr =
+        g.customTotalPriceUsd !== undefined && g.customTotalPriceUsd !== null && !isNaN(g.customTotalPriceUsd)
           ? String(Math.round(g.customTotalPriceUsd * 100) / 100)
           : '';
-      const customNameStr = g.customName ? encodeURIComponent(g.customName.trim()) : '';
-      const colorStr = g.colorQuality ? encodeURIComponent(g.colorQuality.trim()) : '';
-      const clarityStr = g.clarityQuality ? encodeURIComponent(g.clarityQuality.trim()) : '';
+      const customPricePerCaratStr =
+        g.customPricePerCaratUsd !== undefined && g.customPricePerCaratUsd !== null && !isNaN(g.customPricePerCaratUsd)
+          ? String(Math.round(g.customPricePerCaratUsd * 100) / 100)
+          : '';
+      const customNameStr = g.customName ? encodeURIComponent(g.customName.trim()).replace(/~/g, '%7E') : '';
+      const colorStr = g.colorQuality ? encodeURIComponent(g.colorQuality.trim()).replace(/~/g, '%7E') : '';
+      const clarityStr = g.clarityQuality ? encodeURIComponent(g.clarityQuality.trim()).replace(/~/g, '%7E') : '';
 
       const parts = [
         shortType,
-        g.count || 1,
-        g.caratsPerStone || 0,
+        String(count),
+        String(carats),
         originCode,
-        customPriceStr,
+        customTotalPriceStr,
+        customPricePerCaratStr,
         customNameStr,
         colorStr,
         clarityStr,
@@ -164,45 +172,116 @@ function serializeGemstones(gemstones?: GemstoneItem[]): string {
         parts.pop();
       }
 
-      return parts.join('.');
+      return parts.join('~');
     })
-    .join(',');
+    .join(';');
 }
 
 /**
  * Decodes gemstone string back to GemstoneItem array
+ * Supports current '~' delimiter, ':' alternative, and legacy '.' format
  */
 function deserializeGemstones(str: string): GemstoneItem[] {
   if (!str) return [];
   const items: GemstoneItem[] = [];
-  const entries = str.split(',');
+  
+  // Split multiple stones by ';' or ',' (if separated by comma)
+  const gemEntries = str.split(/[;,]/);
 
-  for (let i = 0; i < entries.length; i++) {
-    const rawEntry = entries[i].trim();
+  for (let i = 0; i < gemEntries.length; i++) {
+    const rawEntry = gemEntries[i].trim();
     if (!rawEntry) continue;
-    const parts = rawEntry.split('.');
-    if (parts.length >= 3) {
+
+    let delimiter = '~';
+    if (rawEntry.includes('~')) {
+      delimiter = '~';
+    } else if (rawEntry.includes(':')) {
+      delimiter = ':';
+    } else if (rawEntry.includes('.')) {
+      delimiter = '.';
+    }
+
+    const parts = rawEntry.split(delimiter);
+    if (parts.length >= 2) {
       const rawType = parts[0] || 'd';
       const type = (SHORT_TO_GEM_MAP[rawType] || rawType || 'diamond') as GemType;
       const count = Math.max(1, parseInt(parts[1], 10) || 1);
-      const caratsPerStone = Math.max(0, parseFloat(parts[2]) || 0);
 
-      const rawOrigin = parts[3];
+      let caratsPerStone = 0;
       let origin: GemOrigin = 'natural';
-      if (rawOrigin === 'l' || rawOrigin === 'lab') {
-        origin = 'lab';
-      } else if (rawOrigin === 's' || rawOrigin === 'synthetic') {
-        origin = 'synthetic';
-      } else if (type === 'cubic_zirconia' && (!rawOrigin || rawOrigin === 'n')) {
-        origin = 'synthetic';
-      } else if (type === 'lab_diamond' && (!rawOrigin || rawOrigin === 'n')) {
-        origin = 'lab';
-      }
+      let customTotalPriceUsd: number | undefined = undefined;
+      let customPricePerCaratUsd: number | undefined = undefined;
+      let customName: string | undefined = undefined;
+      let colorQuality: string | undefined = undefined;
+      let clarityQuality: string | undefined = undefined;
 
-      const customPrice = parts[4] && parts[4] !== '' ? parseFloat(parts[4]) : undefined;
-      const customName = parts[5] && parts[5] !== '' ? decodeURIComponent(parts[5]) : undefined;
-      const colorQuality = parts[6] && parts[6] !== '' ? decodeURIComponent(parts[6]) : undefined;
-      const clarityQuality = parts[7] && parts[7] !== '' ? decodeURIComponent(parts[7]) : undefined;
+      if (delimiter === '.') {
+        // Smart parse legacy format where decimal numbers like 0.1 might have been split
+        let curIdx = 2;
+        if (parts[curIdx] === '0' && parts[curIdx + 1] && /^\d+$/.test(parts[curIdx + 1])) {
+          caratsPerStone = parseFloat(`0.${parts[curIdx + 1]}`) || 0;
+          curIdx += 2;
+        } else {
+          caratsPerStone = parseFloat(parts[curIdx]) || 0;
+          curIdx += 1;
+        }
+
+        const rawOrigin = parts[curIdx];
+        curIdx += 1;
+        if (rawOrigin === 'l' || rawOrigin === 'lab') origin = 'lab';
+        else if (rawOrigin === 's' || rawOrigin === 'synthetic') origin = 'synthetic';
+        else if (type === 'cubic_zirconia') origin = 'synthetic';
+        else if (type === 'lab_diamond') origin = 'lab';
+
+        if (parts[curIdx] !== undefined && parts[curIdx] !== '') {
+          // Check if custom price had a decimal point split
+          if (parts[curIdx + 1] && /^\d+$/.test(parts[curIdx + 1])) {
+            customTotalPriceUsd = parseFloat(`${parts[curIdx]}.${parts[curIdx + 1]}`);
+            curIdx += 2;
+          } else {
+            customTotalPriceUsd = parseFloat(parts[curIdx]);
+            curIdx += 1;
+          }
+        }
+        if (parts[curIdx]) {
+          try { customName = decodeURIComponent(parts[curIdx]); } catch { customName = parts[curIdx]; }
+        }
+        if (parts[curIdx + 1]) {
+          try { colorQuality = decodeURIComponent(parts[curIdx + 1]); } catch { colorQuality = parts[curIdx + 1]; }
+        }
+        if (parts[curIdx + 2]) {
+          try { clarityQuality = decodeURIComponent(parts[curIdx + 2]); } catch { clarityQuality = parts[curIdx + 2]; }
+        }
+      } else {
+        // Unambiguous modern format (using '~' or ':')
+        caratsPerStone = Math.max(0, parseFloat(parts[2]) || 0);
+
+        const rawOrigin = parts[3];
+        if (rawOrigin === 'l' || rawOrigin === 'lab') origin = 'lab';
+        else if (rawOrigin === 's' || rawOrigin === 'synthetic') origin = 'synthetic';
+        else if (type === 'cubic_zirconia') origin = 'synthetic';
+        else if (type === 'lab_diamond') origin = 'lab';
+
+        const customTotalVal = parts[4] && parts[4] !== '' ? parseFloat(parts[4]) : undefined;
+        if (typeof customTotalVal === 'number' && !isNaN(customTotalVal)) {
+          customTotalPriceUsd = customTotalVal;
+        }
+
+        const customPerCaratVal = parts[5] && parts[5] !== '' ? parseFloat(parts[5]) : undefined;
+        if (typeof customPerCaratVal === 'number' && !isNaN(customPerCaratVal)) {
+          customPricePerCaratUsd = customPerCaratVal;
+        }
+
+        if (parts[6] && parts[6] !== '') {
+          try { customName = decodeURIComponent(parts[6]); } catch { customName = parts[6]; }
+        }
+        if (parts[7] && parts[7] !== '') {
+          try { colorQuality = decodeURIComponent(parts[7]); } catch { colorQuality = parts[7]; }
+        }
+        if (parts[8] && parts[8] !== '') {
+          try { clarityQuality = decodeURIComponent(parts[8]); } catch { clarityQuality = parts[8]; }
+        }
+      }
 
       items.push({
         id: `shared-gem-${Date.now()}-${i}`,
@@ -214,7 +293,8 @@ function deserializeGemstones(str: string): GemstoneItem[] {
         origin,
         colorQuality,
         clarityQuality,
-        customTotalPriceUsd: typeof customPrice === 'number' && !isNaN(customPrice) ? customPrice : undefined,
+        customTotalPriceUsd,
+        customPricePerCaratUsd,
       });
     }
   }
