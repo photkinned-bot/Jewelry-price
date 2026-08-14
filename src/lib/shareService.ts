@@ -131,22 +131,39 @@ const SHORT_TO_GEM_MAP: Record<string, GemType> = {
 };
 
 /**
- * Encodes gemstones into an ultra-compact string: type.count.carats.origin.price
+ * Encodes gemstones into an ultra-compact string:
+ * Format: type.count.carats.origin.customPrice.customName.color.clarity
  */
 function serializeGemstones(gemstones?: GemstoneItem[]): string {
   if (!gemstones || gemstones.length === 0) return '';
   return gemstones
     .map((g) => {
       const shortType = GEM_SHORT_MAP[g.type] || g.type || 'd';
+      const originCode = g.origin === 'lab' ? 'l' : g.origin === 'synthetic' ? 's' : 'n';
+      const customPriceStr =
+        g.customTotalPriceUsd !== undefined && g.customTotalPriceUsd !== null
+          ? String(Math.round(g.customTotalPriceUsd * 100) / 100)
+          : '';
+      const customNameStr = g.customName ? encodeURIComponent(g.customName.trim()) : '';
+      const colorStr = g.colorQuality ? encodeURIComponent(g.colorQuality.trim()) : '';
+      const clarityStr = g.clarityQuality ? encodeURIComponent(g.clarityQuality.trim()) : '';
+
       const parts = [
         shortType,
         g.count || 1,
         g.caratsPerStone || 0,
-        g.origin === 'lab' ? 'l' : 'n',
+        originCode,
+        customPriceStr,
+        customNameStr,
+        colorStr,
+        clarityStr,
       ];
-      if (g.customTotalPriceUsd) {
-        parts.push(Math.round(g.customTotalPriceUsd));
+
+      // Trim trailing empty parts to keep URL as compact as possible
+      while (parts.length > 4 && parts[parts.length - 1] === '') {
+        parts.pop();
       }
+
       return parts.join('.');
     })
     .join(',');
@@ -161,23 +178,43 @@ function deserializeGemstones(str: string): GemstoneItem[] {
   const entries = str.split(',');
 
   for (let i = 0; i < entries.length; i++) {
-    const parts = entries[i].split('.');
+    const rawEntry = entries[i].trim();
+    if (!rawEntry) continue;
+    const parts = rawEntry.split('.');
     if (parts.length >= 3) {
       const rawType = parts[0] || 'd';
       const type = (SHORT_TO_GEM_MAP[rawType] || rawType || 'diamond') as GemType;
       const count = Math.max(1, parseInt(parts[1], 10) || 1);
       const caratsPerStone = Math.max(0, parseFloat(parts[2]) || 0);
-      const origin: GemOrigin = parts[3] === 'l' ? 'lab' : 'natural';
-      const customPrice = parts[4] ? parseFloat(parts[4]) : undefined;
+
+      const rawOrigin = parts[3];
+      let origin: GemOrigin = 'natural';
+      if (rawOrigin === 'l' || rawOrigin === 'lab') {
+        origin = 'lab';
+      } else if (rawOrigin === 's' || rawOrigin === 'synthetic') {
+        origin = 'synthetic';
+      } else if (type === 'cubic_zirconia' && (!rawOrigin || rawOrigin === 'n')) {
+        origin = 'synthetic';
+      } else if (type === 'lab_diamond' && (!rawOrigin || rawOrigin === 'n')) {
+        origin = 'lab';
+      }
+
+      const customPrice = parts[4] && parts[4] !== '' ? parseFloat(parts[4]) : undefined;
+      const customName = parts[5] && parts[5] !== '' ? decodeURIComponent(parts[5]) : undefined;
+      const colorQuality = parts[6] && parts[6] !== '' ? decodeURIComponent(parts[6]) : undefined;
+      const clarityQuality = parts[7] && parts[7] !== '' ? decodeURIComponent(parts[7]) : undefined;
 
       items.push({
         id: `shared-gem-${Date.now()}-${i}`,
         type,
         nameUk: GEM_NAMES_MAP[type] || 'Дорогоцінний камінь',
+        customName,
         count,
         caratsPerStone,
         origin,
-        customTotalPriceUsd: customPrice,
+        colorQuality,
+        clarityQuality,
+        customTotalPriceUsd: typeof customPrice === 'number' && !isNaN(customPrice) ? customPrice : undefined,
       });
     }
   }
@@ -187,7 +224,7 @@ function deserializeGemstones(str: string): GemstoneItem[] {
 
 /**
  * Generates an ultra-compact, human-readable shareable URL
- * Example: https://site.com/?m=g&p=585&w=4.2&r=28500
+ * Preserves all inputs, gemstone pricing, and store product links
  */
 export function getShareUrl(
   inputs: CalculationInputs,
@@ -197,7 +234,7 @@ export function getShareUrl(
   const baseUrl = overrideBaseUrl || getCleanBaseUrl();
   const params = new URLSearchParams();
 
-  // Ultra-compact metal code: g = gold, s = silver, pt = platinum, pd = palladium
+  // Metal code: g = gold, s = silver, pt = platinum, pd = palladium
   const metalCode =
     inputs.metalType === 'gold' ? 'g' :
     inputs.metalType === 'silver' ? 's' :
@@ -209,12 +246,14 @@ export function getShareUrl(
   if (inputs.retailPrice) params.set('r', inputs.retailPrice.toString());
   if (currency && currency !== 'UAH') params.set('c', currency);
 
-  // Optional details (only included if set/non-default to keep link tiny)
+  // Essential store/brand/title & product URL
   if (inputs.title && inputs.title.trim()) params.set('t', inputs.title.trim());
   if (inputs.itemType && inputs.itemType !== 'ring') params.set('type', inputs.itemType);
-  if (inputs.storeName && inputs.storeName.trim()) params.set('s', inputs.storeName.trim());
   if (inputs.brandName && inputs.brandName.trim()) params.set('b', inputs.brandName.trim());
+  if (inputs.storeName && inputs.storeName.trim()) params.set('s', inputs.storeName.trim());
+  if (inputs.productUrl && inputs.productUrl.trim()) params.set('u', inputs.productUrl.trim());
 
+  // Labor
   if (inputs.laborComplexity && inputs.laborComplexity !== 'standard_casting') {
     const laborCode =
       inputs.laborComplexity === 'stamping' ? 'st' :
@@ -222,26 +261,53 @@ export function getShareUrl(
       inputs.laborComplexity === 'exclusive_designer' ? 'ed' : 'sc';
     params.set('l', laborCode);
   }
-  if (inputs.customLaborCostUsd) {
+  if (inputs.customLaborCostUsd !== undefined && inputs.customLaborCostUsd > 0) {
     params.set('lc', inputs.customLaborCostUsd.toString());
   }
 
+  // Coating
   if (inputs.coatingType && inputs.coatingType !== 'none') {
     params.set('co', inputs.coatingType);
   }
+  if (inputs.customCoatingCostUsd !== undefined && inputs.customCoatingCostUsd >= 0) {
+    params.set('cco', inputs.customCoatingCostUsd.toString());
+  }
+
+  // Surface finish
   if (inputs.surfaceFinish && inputs.surfaceFinish !== 'polished') {
     params.set('sf', inputs.surfaceFinish);
   }
-
-  if (inputs.engravingType && inputs.engravingType !== 'none') {
-    params.set('eg', inputs.engravingType);
-    if (inputs.engravingText) params.set('et', inputs.engravingText);
+  if (inputs.customFinishCostUsd !== undefined && inputs.customFinishCostUsd >= 0) {
+    params.set('csf', inputs.customFinishCostUsd.toString());
   }
 
-  if (inputs.wastagePercent && inputs.wastagePercent !== 8) {
+  // Engraving
+  if (inputs.engravingType && inputs.engravingType !== 'none') {
+    params.set('eg', inputs.engravingType);
+  }
+  if (inputs.engravingText && inputs.engravingText.trim()) {
+    params.set('et', inputs.engravingText.trim());
+  }
+  if (inputs.customEngravingCostUsd !== undefined && inputs.customEngravingCostUsd >= 0) {
+    params.set('ceg', inputs.customEngravingCostUsd.toString());
+  }
+
+  // Loss percentage
+  if (inputs.wastagePercent !== undefined && inputs.wastagePercent !== 8) {
     params.set('wg', inputs.wastagePercent.toString());
   }
 
+  // Hallmark fee
+  if (inputs.hallmarkCostUsd !== undefined && inputs.hallmarkCostUsd !== 1.5) {
+    params.set('hm', inputs.hallmarkCostUsd.toString());
+  }
+
+  // Notes
+  if (inputs.notes && inputs.notes.trim()) {
+    params.set('nt', inputs.notes.trim());
+  }
+
+  // Gemstones
   if (inputs.gemstones && inputs.gemstones.length > 0) {
     const serializedGems = serializeGemstones(inputs.gemstones);
     if (serializedGems) params.set('g', serializedGems);
@@ -315,12 +381,14 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
       return urlParams.get(key) || hashParams.get(key);
     };
 
-    // 1. Check compact parameters first (?m=g / ?p=585 / ?w=...)
+    // 1. Check compact parameters (?m=g / ?p=585 / ?w=... / ?r=...)
     const metal = getParam('m') || getParam('metal');
     const purity = getParam('p') || getParam('purity');
     const weight = getParam('w') || getParam('weight');
+    const retail = getParam('r') || getParam('retail') || getParam('price');
+    const title = getParam('t') || getParam('title');
 
-    if (metal || purity || weight) {
+    if (metal || purity || weight || retail || title) {
       const validMetalTypes: MetalType[] = ['gold', 'silver', 'platinum', 'palladium'];
       let metalType: MetalType = 'gold';
       if (metal) {
@@ -343,26 +411,39 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
       else if (laborParam === 'ch' || laborParam === 'complex_handcraft') laborComplexity = 'complex_handcraft';
       else if (laborParam === 'ed' || laborParam === 'exclusive_designer') laborComplexity = 'exclusive_designer';
 
+      const customLaborVal = getParam('lc') || getParam('laborCost');
+      const customCoatingVal = getParam('cco') || getParam('customCoating');
+      const customFinishVal = getParam('csf') || getParam('customFinish');
+      const customEngravingVal = getParam('ceg') || getParam('customEngraving');
+      const hallmarkVal = getParam('hm') || getParam('hallmark');
+      const productUrlVal = getParam('u') || getParam('url') || getParam('productUrl') || '';
+
       const parsedInputs: CalculationInputs = {
         ...EMPTY_CALCULATION_INPUTS,
         id: `shared-${Date.now()}`,
-        title: getParam('t') || getParam('title') || '',
+        title: title || '',
         itemType: (getParam('type') as any) || 'ring',
         metalType,
         purity: purity ? parseInt(purity, 10) : (metalType === 'gold' ? 585 : metalType === 'silver' ? 925 : 950),
         metalWeightGrams: weight ? parseFloat(weight) : 0,
-        retailPrice: getParam('r') ? parseFloat(getParam('r')!) : 0,
+        retailPrice: retail ? parseFloat(retail) : 0,
         currency,
-        storeName: getParam('s') || getParam('store') || '',
         brandName: getParam('b') || getParam('brand') || '',
+        storeName: getParam('s') || getParam('store') || '',
+        productUrl: productUrlVal,
         laborComplexity,
-        customLaborCostUsd: getParam('lc') ? parseFloat(getParam('lc')!) : undefined,
+        customLaborCostUsd: customLaborVal ? parseFloat(customLaborVal) : undefined,
         coatingType: (getParam('co') as CoatingType) || 'none',
+        customCoatingCostUsd: customCoatingVal ? parseFloat(customCoatingVal) : undefined,
         surfaceFinish: (getParam('sf') as SurfaceFinishType) || 'polished',
+        customFinishCostUsd: customFinishVal ? parseFloat(customFinishVal) : undefined,
         engravingType: (getParam('eg') as EngravingType) || 'none',
-        engravingText: getParam('et') || '',
+        engravingText: getParam('et') || getParam('engravingText') || '',
+        customEngravingCostUsd: customEngravingVal ? parseFloat(customEngravingVal) : undefined,
         wastagePercent: getParam('wg') ? parseFloat(getParam('wg')!) : 8,
-        gemstones: getParam('g') ? deserializeGemstones(getParam('g')!) : [],
+        hallmarkCostUsd: hallmarkVal ? parseFloat(hallmarkVal) : 1.5,
+        notes: getParam('nt') || getParam('notes') || undefined,
+        gemstones: (getParam('g') || getParam('gems')) ? deserializeGemstones((getParam('g') || getParam('gems'))!) : [],
       };
 
       return {
@@ -396,7 +477,14 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
 export function removeShareParamFromBrowserUrl(): void {
   try {
     const url = new URL(window.location.href);
-    const keysToRemove = ['m', 'metal', 'p', 'purity', 'w', 'weight', 'r', 'c', 't', 'title', 'type', 's', 'b', 'l', 'lc', 'co', 'sf', 'eg', 'et', 'wg', 'g', 'calc'];
+    const keysToRemove = [
+      'm', 'metal', 'p', 'purity', 'w', 'weight', 'r', 'retail', 'price',
+      'c', 'currency', 't', 'title', 'type', 's', 'store', 'b', 'brand',
+      'u', 'url', 'productUrl', 'l', 'labor', 'lc', 'laborCost',
+      'co', 'coating', 'cco', 'sf', 'finish', 'csf', 'eg', 'engraving',
+      'et', 'engravingText', 'ceg', 'wg', 'wastage', 'hm', 'hallmark',
+      'nt', 'notes', 'g', 'gems', 'gemstones', 'calc',
+    ];
     keysToRemove.forEach((k) => url.searchParams.delete(k));
     window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
   } catch (err) {
@@ -408,6 +496,7 @@ export type ShareFormatMode = 'link_only' | 'short_summary' | 'full_details';
 
 /**
  * Formats sharing message based on selected mode
+ * Designed to look clean, compact, and engaging in Viber, Telegram, WhatsApp
  */
 export function formatShareContent(
   mode: ShareFormatMode,
@@ -416,7 +505,7 @@ export function formatShareContent(
   currency: Currency,
   shareUrl: string
 ): string {
-  // Mode 1: Pure single short link (NO text clutter, zero risk in Viber)
+  // Mode 1: Pure short link
   if (mode === 'link_only') {
     return shareUrl;
   }
@@ -428,26 +517,47 @@ export function formatShareContent(
 
   const title = inputs.title?.trim() || `${metalName} ${inputs.purity}`;
 
-  // Mode 2: Ultra-short single sentence + link
+  const gemsList = inputs.gemstones && inputs.gemstones.length > 0
+    ? inputs.gemstones
+        .map((g) => {
+          const name = g.type === 'other' && g.customName ? g.customName : g.nameUk.split(' ')[0];
+          return `${g.count}x ${name} (${(g.caratsPerStone * g.count).toFixed(2)}ct)`;
+        })
+        .join(', ')
+    : null;
+
+  // Mode 2: Ultra-neat compact messenger message (default)
   if (mode === 'short_summary') {
-    return `💎 ${title} (${inputs.metalWeightGrams}г) • Собівартість: ${formatMoney(result.rawMaterialsTotal, currency)} | Ціна: ${formatMoney(result.retailPrice, currency)}\n${shareUrl}`;
+    const lines = [
+      `💎 ${title}`,
+      `⚖️ ${metalName} ${inputs.purity} (${inputs.metalWeightGrams}г)${gemsList ? ` • ${gemsList}` : ''}`,
+      inputs.storeName || inputs.brandName ? `🏬 ${[inputs.brandName, inputs.storeName].filter(Boolean).join(' • ')}` : '',
+      `💰 Ціна в магазині: ${formatMoney(result.retailPrice, currency)}`,
+      `🪙 Собівартість сировини: ${formatMoney(result.rawMaterialsTotal, currency)} (націнка ${result.markupRatio}x)`,
+      '',
+      `🔗 Відкрити повний розрахунок:`,
+      shareUrl,
+    ].filter(Boolean);
+
+    return lines.join('\n');
   }
 
-  // Mode 3: Detailed calculation summary
-  const gemsSummary = inputs.gemstones && inputs.gemstones.length > 0
-    ? inputs.gemstones.map((g) => `${g.count}x ${g.nameUk} (${g.caratsPerStone * g.count}ct)`).join(', ')
-    : 'Без каміння';
+  // Mode 3: Detailed calculation report
+  const gemsSummary = gemsList || 'Без каміння';
 
   const lines = [
-    `💎 Розрахунок: «${title}»`,
+    `💎 Ювелірний розрахунок: «${title}»`,
     inputs.storeName ? `🏬 Магазин: ${inputs.storeName}` : '',
-    `⚖️ ${metalName} ${inputs.purity} (${inputs.metalWeightGrams} г)`,
+    inputs.brandName ? `🏷️ Бренд: ${inputs.brandName}` : '',
+    `⚖️ Матеріал: ${metalName} ${inputs.purity} (${inputs.metalWeightGrams} г)`,
     `✨ Вставки: ${gemsSummary}`,
-    `🪙 Собівартість сировини: ${formatMoney(result.rawMaterialsTotal, currency)}`,
+    `🪙 Собівартість сировини (метал + каміння): ${formatMoney(result.rawMaterialsTotal, currency)}`,
+    `🛠️ Виробнича собівартість: ${formatMoney(result.productionCostTotal, currency)}`,
     `💰 Роздрібна ціна: ${formatMoney(result.retailPrice, currency)}`,
-    `📊 Націнка: ${result.markupRatio}x (+${result.markupPercent}%)`,
+    `📊 Націнка магазину: ${result.markupRatio}x (+${result.markupPercent}%)`,
+    `🏦 Ліквідність / викуп: ~${formatMoney(result.pawnshopEstimate, currency)}`,
     '',
-    `🔍 Посилання на розрахунок:`,
+    `🔍 Посилання на відкриття параметрів:`,
     shareUrl,
   ].filter(Boolean);
 
@@ -458,18 +568,22 @@ export function formatShareContent(
  * Generates direct social network and messenger sharing URLs
  */
 export function getSocialShareLinks(shareUrl: string, textToSend: string, title: string) {
-  const encodedText = encodeURIComponent(textToSend);
+  const encodedFullText = encodeURIComponent(textToSend);
   const encodedUrl = encodeURIComponent(shareUrl);
   const encodedTitle = encodeURIComponent(`Ювелірний розрахунок: ${title || 'Прикраса'}`);
+  
+  // For Telegram, text without repeating URL because url param is already attached
+  const textWithoutUrl = textToSend.replace(shareUrl, '').trim();
+  const encodedTelegramText = encodeURIComponent(textWithoutUrl);
 
   return {
-    telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(title ? `💎 ${title}` : '')}`,
-    viber: `viber://forward?text=${encodedText}`,
-    viberWeb: `https://302.viber.com/send?text=${encodedText}`,
-    whatsapp: `https://api.whatsapp.com/send?text=${encodedText}`,
+    telegram: `https://t.me/share/url?url=${encodedUrl}&text=${encodedTelegramText}`,
+    viber: `viber://forward?text=${encodedFullText}`,
+    viberWeb: `https://302.viber.com/send?text=${encodedFullText}`,
+    whatsapp: `https://api.whatsapp.com/send?text=${encodedFullText}`,
     facebook: `https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`,
-    twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodeURIComponent(title ? `💎 ${title}` : '')}`,
-    email: `mailto:?subject=${encodedTitle}&body=${encodedText}`,
+    twitter: `https://twitter.com/intent/tweet?url=${encodedUrl}&text=${encodedTelegramText}`,
+    email: `mailto:?subject=${encodedTitle}&body=${encodedFullText}`,
   };
 }
 

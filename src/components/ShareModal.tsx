@@ -44,7 +44,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   result,
   currency,
 }) => {
-  const [shareMode, setShareMode] = useState<ShareFormatMode>('link_only');
+  const [shareMode, setShareMode] = useState<ShareFormatMode>('short_summary');
   const [copied, setCopied] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [showQrCode, setShowQrCode] = useState(false);
@@ -135,7 +135,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Поділитися Розрахунком"
-      subtitle="Одне коротке посилання без зайвого тексту"
+      subtitle="Збереження всіх параметрів, цін та посилання на інтернет-магазин"
       icon={<Share2 className="w-5 h-5 text-amber-400" />}
       maxWidthClass="max-w-lg"
       footer={
@@ -169,7 +169,14 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             </h4>
             <p className="text-xs text-slate-400">
               {inputs.metalType === 'gold' ? 'Золото' : inputs.metalType === 'silver' ? 'Срібло' : 'Платина'} {inputs.purity} • {inputs.metalWeightGrams} г
+              {inputs.gemstones && inputs.gemstones.length > 0 && ` • ${inputs.gemstones.length} вст.`}
             </p>
+            {inputs.productUrl && (
+              <p className="text-[11px] text-sky-400 truncate flex items-center gap-1 mt-0.5">
+                <ExternalLink className="w-3 h-3 shrink-0" />
+                <span className="truncate">Магазин: {inputs.productUrl}</span>
+              </p>
+            )}
           </div>
           <div className="text-right shrink-0">
             <span className="text-xs font-mono font-bold text-amber-400 block">
@@ -184,20 +191,9 @@ export const ShareModal: React.FC<ShareModalProps> = ({
         {/* Share Mode Selector */}
         <div className="space-y-1.5">
           <label className="text-[11px] font-semibold text-slate-400 block">
-            Формат відправки:
+            Формат повідомлення для месенджерів:
           </label>
           <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-950 rounded-xl border border-slate-800 text-xs">
-            <button
-              type="button"
-              onClick={() => setShareMode('link_only')}
-              className={`py-1.5 px-2 rounded-lg font-medium transition-all text-center ${
-                shareMode === 'link_only'
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              Лише посилання
-            </button>
             <button
               type="button"
               onClick={() => setShareMode('short_summary')}
@@ -208,6 +204,17 @@ export const ShareModal: React.FC<ShareModalProps> = ({
               }`}
             >
               Коротке інфо
+            </button>
+            <button
+              type="button"
+              onClick={() => setShareMode('link_only')}
+              className={`py-1.5 px-2 rounded-lg font-medium transition-all text-center ${
+                shareMode === 'link_only'
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Лише посилання
             </button>
             <button
               type="button"
@@ -228,7 +235,7 @@ export const ShareModal: React.FC<ShareModalProps> = ({
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
               <Link2 className="w-3.5 h-3.5 text-amber-400" />
-              <span>{shareMode === 'link_only' ? 'Коротке посилання:' : 'Текст для відправки:'}</span>
+              <span>{shareMode === 'link_only' ? 'Посилання для копіювання:' : 'Текст повідомлення та посилання:'}</span>
             </span>
             {copied && (
               <span className="text-emerald-400 text-xs flex items-center space-x-1 font-semibold animate-in fade-in">
@@ -238,18 +245,28 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="text"
-              readOnly
-              value={textToSend}
-              onClick={(e) => (e.target as HTMLInputElement).select()}
-              className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs text-amber-300 font-mono truncate select-all focus:outline-none"
-            />
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-start gap-2">
+            {shareMode === 'link_only' ? (
+              <input
+                type="text"
+                readOnly
+                value={textToSend}
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+                className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2.5 text-xs text-amber-300 font-mono truncate select-all focus:outline-none"
+              />
+            ) : (
+              <textarea
+                readOnly
+                rows={4}
+                value={textToSend}
+                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                className="flex-1 bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-amber-300 font-mono resize-none select-all focus:outline-none leading-relaxed"
+              />
+            )}
             <button
               type="button"
               onClick={handleCopy}
-              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center space-x-1.5 shrink-0 transition-all active:scale-95 ${
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center space-x-1.5 shrink-0 transition-all active:scale-95 ${
                 copied
                   ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
                   : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/10'
