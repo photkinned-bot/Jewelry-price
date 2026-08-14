@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ювелірний Калькулятор Прозорості</title>
+    <script>
+      // Single Page App redirect for GitHub Pages
+      (function() {
+        var l = window.location;
+        var search = l.search || '';
+        var hash = l.hash || '';
+        
+        // Find the base path (e.g. /repo-name/ or /)
+        var path = l.pathname || '/';
+        var parts = path.split('/').filter(Boolean);
+        var basePath = parts.length > 0 ? '/' + parts[0] + '/' : '/';
+        
+        // Redirect to base path preserving query parameters and hash
+        window.location.replace(l.origin + basePath + search + hash);
+      })();
+    </script>
+  </head>
+  <body style="background-color: #020617; color: #cbd5e1; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0;">
+    <div style="text-align: center;">
+      <p style="font-size: 16px; font-weight: bold; color: #f59e0b;">Ювелірний Калькулятор</p>
+      <p style="font-size: 14px;">Завантаження розрахунку...</p>
+    </div>
+  </body>
+</html>
