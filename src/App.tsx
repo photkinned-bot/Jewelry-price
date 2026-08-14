@@ -14,8 +14,9 @@ import { ApiKeySettingsModal } from './components/ApiKeySettingsModal';
 import { PwaGuideModal } from './components/PwaGuideModal';
 import { ShareModal } from './components/ShareModal';
 import { DisclaimerModal } from './components/DisclaimerModal';
+import { CalculationRatingWidget } from './components/CalculationRatingWidget';
 
-import { CalculationInputs, Currency, MetalRates, SavedCalculation, CalculationResult } from './types';
+import { CalculationInputs, Currency, MetalRates, SavedCalculation, CalculationResult, UserRating } from './types';
 import { DEFAULT_METAL_RATES } from './data/metalRates';
 import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
@@ -134,10 +135,29 @@ export default function App() {
       createdAt: new Date().toISOString(),
       inputs: { ...inputs, currency },
       result,
+      rating: inputs.rating,
     };
     setSavedCalculations((prev) => [newSaved, ...prev]);
     setSaveSuccessNotice(true);
     setTimeout(() => setSaveSuccessNotice(false), 2500);
+  };
+
+  const handleUpdateItemRating = (id: string, rating: UserRating | undefined) => {
+    setSavedCalculations((prev) =>
+      prev.map((item) => {
+        if (item.id === id) {
+          return {
+            ...item,
+            rating,
+            inputs: {
+              ...item.inputs,
+              rating,
+            },
+          };
+        }
+        return item;
+      })
+    );
   };
 
   const handleDeleteSaved = (id: string) => {
@@ -316,20 +336,27 @@ export default function App() {
           {/* RIGHT COLUMN (Live Breakdown Analytics) - 7 cols */}
           <div className="lg:col-span-7 space-y-6">
             
-            {/* 1. Markup Meter / Gauge */}
+            {/* 1. User Rating & Reaction Verdict Widget */}
+            <CalculationRatingWidget
+              rating={inputs.rating}
+              onChangeRating={(newRating) => setInputs((prev) => ({ ...prev, rating: newRating }))}
+              itemTitle={inputs.title}
+            />
+
+            {/* 2. Markup Meter / Gauge */}
             <MarkupGauge
               result={result}
               currency={currency}
               onShare={() => handleOpenShareModal()}
             />
 
-            {/* 2. Recharts Price Breakdown */}
+            {/* 3. Recharts Price Breakdown */}
             <PriceBreakdownChart result={result} currency={currency} />
 
-            {/* 3. Investment & Pawnshop Liquidity */}
+            {/* 4. Investment & Pawnshop Liquidity */}
             <InvestmentCard result={result} currency={currency} />
 
-            {/* 4. Gemini AI Advice Consultant */}
+            {/* 5. Gemini AI Advice Consultant */}
             <AiAdviceCard inputs={inputs} result={result} />
 
           </div>
@@ -397,6 +424,7 @@ export default function App() {
         onShareItem={(item) => handleOpenShareModal(item)}
         onDeleteItem={handleDeleteSaved}
         onClearAll={handleClearAllSaved}
+        onUpdateItemRating={handleUpdateItemRating}
       />
 
       <JewelryGuideModal

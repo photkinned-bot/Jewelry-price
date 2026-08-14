@@ -13,6 +13,10 @@ import {
   Globe,
   Info,
   SlidersHorizontal,
+  Star,
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { CalculationInputs, CalculationResult, Currency } from '../types';
@@ -176,6 +180,34 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                 <ExternalLink className="w-3 h-3 shrink-0" />
                 <span className="truncate">Магазин: {inputs.productUrl}</span>
               </p>
+            )}
+            {inputs.rating && (inputs.rating.stars !== undefined || inputs.rating.vote) && (
+              <div className="flex items-center space-x-1.5 mt-1">
+                {inputs.rating.stars !== undefined && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    <Star className="w-3 h-3 fill-amber-400" />
+                    <span>{inputs.rating.stars}/5★</span>
+                  </span>
+                )}
+                {inputs.rating.vote === 'heart' && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                    <Heart className="w-3 h-3 fill-rose-400" />
+                    <span>Улюблене</span>
+                  </span>
+                )}
+                {inputs.rating.vote === 'up' && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                    <ThumbsUp className="w-3 h-3 fill-emerald-400/20" />
+                    <span>Рекомендую</span>
+                  </span>
+                )}
+                {inputs.rating.vote === 'down' && (
+                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                    <ThumbsDown className="w-3 h-3 fill-amber-400/20" />
+                    <span>Не раджу</span>
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className="text-right shrink-0">

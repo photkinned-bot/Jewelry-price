@@ -94,6 +94,15 @@ export interface EngravingOption {
 
 export type Currency = 'UAH' | 'USD' | 'EUR';
 
+export type RatingVote = 'up' | 'down' | 'heart';
+
+export interface UserRating {
+  vote?: RatingVote | null; // 'up' (👍), 'down' (👎), 'heart' (❤️)
+  stars?: number; // 0 to 5
+  updatedAt?: string;
+  note?: string;
+}
+
 export interface MetalRates {
   updatedAt: string;
   source?: string;
@@ -140,6 +149,7 @@ export interface CalculationInputs {
   currency: Currency;
   notes?: string;
   photoUrl?: string;
+  rating?: UserRating; // Користувацький рейтинг розрахунку (зірочки 0-5, палець/сердечко)
 }
 
 export interface CalculationResult {
@@ -196,4 +206,5 @@ export interface SavedCalculation {
   inputs: CalculationInputs;
   result: CalculationResult;
   aiAdvice?: AiAdviceResult;
+  rating?: UserRating;
 }

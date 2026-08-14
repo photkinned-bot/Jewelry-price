@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2 } from 'lucide-react';
+import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2, Star, Heart, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { ModalDialog } from './ModalDialog';
@@ -116,6 +116,51 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                         {formatMoney(item.result.retailPrice, currency)}
                       </td>
                     ))}
+                  </tr>
+
+                  {/* User Rating */}
+                  <tr>
+                    <td className="py-2.5 px-3 font-semibold text-amber-300">Оцінка та враження</td>
+                    {savedItems.map((item) => {
+                      const itemRating = item.rating || item.inputs.rating;
+                      const stars = itemRating?.stars;
+                      const vote = itemRating?.vote;
+
+                      return (
+                        <td key={item.id} className="py-2.5 px-3">
+                          {stars !== undefined || vote ? (
+                            <div className="flex items-center space-x-1.5 flex-wrap gap-1">
+                              {stars !== undefined && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[11px]">
+                                  <Star className="w-3 h-3 fill-amber-400" />
+                                  <span>{stars}/5</span>
+                                </span>
+                              )}
+                              {vote === 'heart' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300 font-bold text-[11px]">
+                                  <Heart className="w-3 h-3 fill-rose-400" />
+                                  <span>Улюблене</span>
+                                </span>
+                              )}
+                              {vote === 'up' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 font-bold text-[11px]">
+                                  <ThumbsUp className="w-3 h-3 fill-emerald-400/20" />
+                                  <span>Вигідно</span>
+                                </span>
+                              )}
+                              {vote === 'down' && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-bold text-[11px]">
+                                  <ThumbsDown className="w-3 h-3 fill-amber-400/20" />
+                                  <span>Невигідно</span>
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 text-[11px]">Не оцінено</span>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
 
                   {/* Metal details */}

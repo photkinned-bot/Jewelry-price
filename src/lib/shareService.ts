@@ -393,6 +393,17 @@ export function getShareUrl(
     if (serializedGems) params.set('g', serializedGems);
   }
 
+  // User Rating (Stars 0-5 and Reaction: heart, up, down)
+  if (inputs.rating) {
+    if (inputs.rating.stars !== undefined && inputs.rating.stars !== null) {
+      params.set('st', inputs.rating.stars.toString());
+    }
+    if (inputs.rating.vote) {
+      const voteCode = inputs.rating.vote === 'heart' ? 'h' : inputs.rating.vote === 'up' ? 'u' : 'd';
+      params.set('vt', voteCode);
+    }
+  }
+
   const queryString = params.toString();
   return queryString ? `${baseUrl}?${queryString}` : baseUrl;
 }
@@ -498,6 +509,28 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
       const hallmarkVal = getParam('hm') || getParam('hallmark');
       const productUrlVal = getParam('u') || getParam('url') || getParam('productUrl') || '';
 
+      // User Rating parsing (st / stars / vt / vote)
+      const starsParam = getParam('st') || getParam('stars');
+      const voteParam = getParam('vt') || getParam('vote') || getParam('reaction');
+      let parsedRating: import('../types').UserRating | undefined = undefined;
+
+      const parsedStars = (starsParam !== null && starsParam !== '' && !isNaN(parseInt(starsParam, 10)))
+        ? Math.max(0, Math.min(5, parseInt(starsParam, 10)))
+        : undefined;
+
+      let parsedVote: import('../types').RatingVote | null = null;
+      if (voteParam === 'h' || voteParam === 'heart') parsedVote = 'heart';
+      else if (voteParam === 'u' || voteParam === 'up') parsedVote = 'up';
+      else if (voteParam === 'd' || voteParam === 'down') parsedVote = 'down';
+
+      if (parsedStars !== undefined || parsedVote !== null) {
+        parsedRating = {
+          stars: parsedStars,
+          vote: parsedVote,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
       const parsedInputs: CalculationInputs = {
         ...EMPTY_CALCULATION_INPUTS,
         id: `shared-${Date.now()}`,
@@ -524,6 +557,7 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
         hallmarkCostUsd: hallmarkVal ? parseFloat(hallmarkVal) : 1.5,
         notes: getParam('nt') || getParam('notes') || undefined,
         gemstones: (getParam('g') || getParam('gems')) ? deserializeGemstones((getParam('g') || getParam('gems'))!) : [],
+        rating: parsedRating,
       };
 
       return {
@@ -564,6 +598,7 @@ export function removeShareParamFromBrowserUrl(): void {
       'co', 'coating', 'cco', 'sf', 'finish', 'csf', 'eg', 'engraving',
       'et', 'engravingText', 'ceg', 'wg', 'wastage', 'hm', 'hallmark',
       'nt', 'notes', 'g', 'gems', 'gemstones', 'calc',
+      'st', 'stars', 'vt', 'vote', 'reaction', 'rt', 'rating',
     ];
     keysToRemove.forEach((k) => url.searchParams.delete(k));
     window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
@@ -606,12 +641,24 @@ export function formatShareContent(
         .join(', ')
     : null;
 
+  // Rating badge text
+  const ratingText = inputs.rating && (inputs.rating.stars !== undefined || inputs.rating.vote)
+    ? `⭐ Оцінка автора: ${
+        inputs.rating.stars !== undefined ? `${inputs.rating.stars}/5★` : ''
+      }${
+        inputs.rating.vote === 'heart' ? ' (❤️ Улюблене)' :
+        inputs.rating.vote === 'up' ? ' (👍 Рекомендую)' :
+        inputs.rating.vote === 'down' ? ' (👎 Не рекомендую)' : ''
+      }`.trim()
+    : null;
+
   // Mode 2: Ultra-neat compact messenger message (default)
   if (mode === 'short_summary') {
     const lines = [
       `💎 ${title}`,
       `⚖️ ${metalName} ${inputs.purity} (${inputs.metalWeightGrams}г)${gemsList ? ` • ${gemsList}` : ''}`,
       inputs.storeName || inputs.brandName ? `🏬 ${[inputs.brandName, inputs.storeName].filter(Boolean).join(' • ')}` : '',
+      ratingText ? `${ratingText}` : '',
       `💰 Ціна в магазині: ${formatMoney(result.retailPrice, currency)}`,
       `🪙 Собівартість сировини: ${formatMoney(result.rawMaterialsTotal, currency)} (націнка ${result.markupRatio}x)`,
       '',
@@ -629,6 +676,7 @@ export function formatShareContent(
     `💎 Ювелірний розрахунок: «${title}»`,
     inputs.storeName ? `🏬 Магазин: ${inputs.storeName}` : '',
     inputs.brandName ? `🏷️ Бренд: ${inputs.brandName}` : '',
+    ratingText ? `${ratingText}` : '',
     `⚖️ Матеріал: ${metalName} ${inputs.purity} (${inputs.metalWeightGrams} г)`,
     `✨ Вставки: ${gemsSummary}`,
     `🪙 Собівартість сировини (метал + каміння): ${formatMoney(result.rawMaterialsTotal, currency)}`,
