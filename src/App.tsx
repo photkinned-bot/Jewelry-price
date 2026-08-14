@@ -13,6 +13,7 @@ import { JewelryGuideModal } from './components/JewelryGuideModal';
 import { ApiKeySettingsModal } from './components/ApiKeySettingsModal';
 import { PwaGuideModal } from './components/PwaGuideModal';
 import { ShareModal } from './components/ShareModal';
+import { DisclaimerModal } from './components/DisclaimerModal';
 
 import { CalculationInputs, Currency, MetalRates, SavedCalculation, CalculationResult } from './types';
 import { DEFAULT_METAL_RATES } from './data/metalRates';
@@ -20,7 +21,7 @@ import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
 import { EMPTY_CALCULATION_INPUTS } from './data/sampleItems';
 import { parseShareUrlFromLocation } from './lib/shareService';
-import { Save, History, Scale, CheckCircle2, Share2, Sparkles, X } from 'lucide-react';
+import { Save, History, Scale, CheckCircle2, Share2, Sparkles, X, AlertTriangle } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
 
@@ -50,6 +51,7 @@ export default function App() {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isApiKeySettingsOpen, setIsApiKeySettingsOpen] = useState(false);
   const [isPwaGuideOpen, setIsPwaGuideOpen] = useState(false);
+  const [isDisclaimerOpen, setIsDisclaimerOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareTargetItem, setShareTargetItem] = useState<{
     inputs: CalculationInputs;
@@ -171,6 +173,7 @@ export default function App() {
         onOpenComparison={() => setIsComparisonOpen(true)}
         onOpenApiKeySettings={() => setIsApiKeySettingsOpen(true)}
         onOpenPwaGuide={() => setIsPwaGuideOpen(true)}
+        onOpenDisclaimer={() => setIsDisclaimerOpen(true)}
         savedCount={savedCalculations.length}
       />
 
@@ -184,17 +187,38 @@ export default function App() {
               <Scale className="w-5 h-5 text-amber-400" />
             </div>
             <div className="text-xs">
-              <span className="font-bold text-white block">
-                Перевіряйте ціну будь-яких ювелірних прикрас перед покупкою
-              </span>
-              <span className="text-slate-400">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-white">
+                  Перевіряйте ціну будь-яких ювелірних прикрас перед покупкою
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsDisclaimerOpen(true)}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                  title="Натисніть щоб прочитати офіційне попередження"
+                >
+                  <AlertTriangle className="w-3 h-3 text-amber-400" />
+                  <span>Орієнтовний розрахунок</span>
+                </button>
+              </div>
+              <span className="text-slate-400 block mt-0.5">
                 Калькулятор вираховує чистий вміст металу, ринкову вартість каміння й відокремлює її від націнки магазину.
               </span>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 shrink-0 self-end sm:self-auto">
-            
+            {/* Disclaimer Button in Bar */}
+            <button
+              type="button"
+              onClick={() => setIsDisclaimerOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-all active:scale-95"
+              title="Попередження щодо точності розрахунків"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden md:inline">Увага: орієнтир</span>
+            </button>
+
             {/* Share Button (Primary) */}
             <button
               onClick={() => handleOpenShareModal()}
@@ -320,8 +344,16 @@ export default function App() {
           <p className="font-serif text-slate-400 font-medium">
             Ювелірний Калькулятор Прозорості (Jewelry Value & Markup Tracker)
           </p>
-          <p className="text-[11px]">
-            Розрахунки базуються на орієнтовних міжнародних біржових котируваннях металів (LBMA spot) та стандартних коефіцієнтах ювелірного виробництва.
+          <p className="text-[11px] text-slate-400 flex items-center justify-center gap-1.5 flex-wrap">
+            <span>Розрахунки базуються на орієнтовних міжнародних біржових котируваннях металів (LBMA spot) та стандартних коефіцієнтах ювелірного виробництва.</span>
+            <button
+              type="button"
+              onClick={() => setIsDisclaimerOpen(true)}
+              className="text-amber-400 hover:text-amber-300 underline font-semibold inline-flex items-center gap-1 ml-1 cursor-pointer"
+            >
+              <AlertTriangle className="w-3 h-3 text-amber-400" />
+              <span>Попередження про орієнтовність даних</span>
+            </button>
           </p>
         </div>
       </footer>
@@ -380,6 +412,11 @@ export default function App() {
       <PwaGuideModal
         isOpen={isPwaGuideOpen}
         onClose={() => setIsPwaGuideOpen(false)}
+      />
+
+      <DisclaimerModal
+        isOpen={isDisclaimerOpen}
+        onClose={() => setIsDisclaimerOpen(false)}
       />
 
       {/* Share Modal */}

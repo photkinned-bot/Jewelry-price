@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gem, Sparkles, RefreshCw, BookOpen, BarChart2, Key, Tablet } from 'lucide-react';
+import { Gem, Sparkles, RefreshCw, BookOpen, BarChart2, Key, Tablet, AlertTriangle } from 'lucide-react';
 import { Currency, MetalRates } from '../types';
 import { formatMoney } from '../data/metalRates';
 
@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenComparison: () => void;
   onOpenApiKeySettings: () => void;
   onOpenPwaGuide: () => void;
+  onOpenDisclaimer: () => void;
   savedCount: number;
 }
 
@@ -26,6 +27,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenComparison,
   onOpenApiKeySettings,
   onOpenPwaGuide,
+  onOpenDisclaimer,
   savedCount,
 }) => {
   const goldPriceDisplay = formatMoney(
@@ -112,6 +114,20 @@ export const Header: React.FC<HeaderProps> = ({
                   {savedCount}
                 </span>
               )}
+            </button>
+
+            {/* Disclaimer / Warning Button - High Visibility */}
+            <button
+              onClick={onOpenDisclaimer}
+              className="relative flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border-2 border-amber-500/50 hover:border-amber-400 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-all shadow-sm shadow-amber-500/10 active:scale-95 group"
+              title="Важливо: попередження про орієнтовність розрахунків"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+              </span>
+              <AlertTriangle className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span>Попередження</span>
             </button>
 
             {/* API Key Settings Button */}
