@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Trash2, Download, Printer, Tag, Calendar, ChevronRight, ExternalLink, Share2 } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
@@ -24,6 +24,8 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   onDeleteItem,
   onClearAll,
 }) => {
+  const backdropPointerDownRef = useRef<boolean>(false);
+
   // ESC key listener to close drawer
   useEffect(() => {
     if (!isOpen) return;
@@ -55,13 +57,31 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-slate-950/80 backdrop-blur-sm"
+      onMouseDown={(e) => {
+        if (e.button === 0 && e.target === e.currentTarget) {
+          backdropPointerDownRef.current = true;
+        } else {
+          backdropPointerDownRef.current = false;
+        }
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) {
+        if (e.button === 0 && backdropPointerDownRef.current && e.target === e.currentTarget) {
           onClose();
+        }
+        backdropPointerDownRef.current = false;
+      }}
+      onContextMenu={(e) => {
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
         }
       }}
     >
-      <div className="bg-slate-900 border-l border-slate-800 w-full max-w-md h-full max-h-[100dvh] flex flex-col text-slate-100 shadow-2xl animate-in slide-in-from-right duration-200">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
+        className="bg-slate-900 border-l border-slate-800 w-full max-w-md h-full max-h-[100dvh] flex flex-col text-slate-100 shadow-2xl animate-in slide-in-from-right duration-200"
+      >
         
         {/* Header - Fixed */}
         <div className="shrink-0 flex items-center justify-between px-4 sm:px-6 py-3.5 border-b border-slate-800 bg-slate-900/95">

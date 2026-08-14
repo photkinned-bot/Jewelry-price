@@ -34,6 +34,8 @@ export const ModalDialog: React.FC<ModalDialogProps> = ({
   });
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const backdropPointerDownRef = useRef<boolean>(false);
+
   // Reset position when opened or closed
   useEffect(() => {
     if (isOpen) {
@@ -53,7 +55,7 @@ export const ModalDialog: React.FC<ModalDialogProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  // Handle Dragging - Mouse and Touch
+  // Handle Dragging - Mouse and Touch (only primary left mouse button)
   const handleDragStart = useCallback((clientX: number, clientY: number) => {
     setIsDragging(true);
     dragStartRef.current = {
@@ -65,9 +67,13 @@ export const ModalDialog: React.FC<ModalDialogProps> = ({
   }, [position]);
 
   const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Only drag with left mouse button (e.button === 0). Never intercept right-click (button 2) or middle-click.
+    if (e.button !== 0) {
+      return;
+    }
     // Only drag from header if not clicking on interactive elements
     const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('input') || target.closest('a') || target.closest('select')) {
+    if (target.closest('button') || target.closest('input') || target.closest('a') || target.closest('select') || target.closest('textarea')) {
       return;
     }
     e.preventDefault();
@@ -148,10 +154,30 @@ export const ModalDialog: React.FC<ModalDialogProps> = ({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-2 sm:p-4 overflow-hidden"
+      onMouseDown={(e) => {
+        // Only track left-click directly on the backdrop (not on modal contents or on right-click)
+        if (e.button === 0 && e.target === e.currentTarget) {
+          backdropPointerDownRef.current = true;
+        } else {
+          backdropPointerDownRef.current = false;
+        }
+      }}
       onClick={(e) => {
-        // Close when clicking directly on the backdrop
-        if (e.target === e.currentTarget && !isDragging) {
+        // Close ONLY when left click started on backdrop and ended directly on backdrop, and not dragging
+        if (
+          e.button === 0 &&
+          backdropPointerDownRef.current &&
+          e.target === e.currentTarget &&
+          !isDragging
+        ) {
           onClose();
+        }
+        backdropPointerDownRef.current = false;
+      }}
+      onContextMenu={(e) => {
+        // Prevent right click on backdrop from triggering unhandled clicks
+        if (e.target === e.currentTarget) {
+          e.stopPropagation();
         }
       }}
     >
@@ -161,6 +187,9 @@ export const ModalDialog: React.FC<ModalDialogProps> = ({
           transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
           transition: isDragging ? 'none' : 'transform 0.15s ease-out',
         }}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onContextMenu={(e) => e.stopPropagation()}
         className={`bg-slate-900 border border-slate-800 rounded-2xl w-full ${maxWidthClass} text-slate-100 shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] overflow-hidden animate-in fade-in zoom-in-95 duration-150 relative`}
       >
         {/* Header - Fixed & Draggable */}
