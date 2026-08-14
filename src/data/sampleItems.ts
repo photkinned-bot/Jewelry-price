@@ -21,6 +21,7 @@ export const EMPTY_CALCULATION_INPUTS: CalculationInputs = {
   retailPrice: 0,
   currency: 'UAH',
   notes: '',
+  userComment: '',
 };
 
 export const SAMPLE_JEWELRY_ITEMS: CalculationInputs[] = [

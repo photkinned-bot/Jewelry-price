@@ -148,6 +148,7 @@ export interface CalculationInputs {
   retailPrice: number; // Ціна в магазині
   currency: Currency;
   notes?: string;
+  userComment?: string; // Власний коментар користувача / нотатки
   photoUrl?: string;
   rating?: UserRating; // Користувацький рейтинг розрахунку (зірочки 0-5, палець/сердечко)
 }
@@ -207,4 +208,5 @@ export interface SavedCalculation {
   result: CalculationResult;
   aiAdvice?: AiAdviceResult;
   rating?: UserRating;
+  userComment?: string;
 }

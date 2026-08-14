@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2, Star, Heart, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2, Star, Heart, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { ModalDialog } from './ModalDialog';
@@ -157,6 +157,26 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                             </div>
                           ) : (
                             <span className="text-slate-600 text-[11px]">Не оцінено</span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* User Comment / Notes */}
+                  <tr>
+                    <td className="py-2.5 px-3 font-semibold text-slate-300">Власний коментар</td>
+                    {savedItems.map((item) => {
+                      const comment = item.inputs.userComment || item.inputs.notes || item.userComment;
+                      return (
+                        <td key={item.id} className="py-2.5 px-3">
+                          {comment ? (
+                            <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-200 text-xs flex items-start gap-1">
+                              <MessageSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                              <span className="italic line-clamp-2">{comment}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-600 text-[11px]">—</span>
                           )}
                         </td>
                       );

@@ -14,6 +14,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Filter,
+  MessageSquare,
 } from 'lucide-react';
 import { SavedCalculation, Currency, UserRating, RatingVote } from '../types';
 import { formatMoney } from '../data/metalRates';
@@ -412,6 +413,19 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                       </span>
                     </div>
                   </div>
+
+                  {/* User Comment if present */}
+                  {(item.inputs.userComment || item.inputs.notes || item.userComment) && (
+                    <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20 flex items-start gap-1.5 text-xs text-amber-200">
+                      <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <span className="font-semibold text-amber-300 block text-[10px]">Коментар:</span>
+                        <p className="italic text-[11px] leading-snug line-clamp-3">
+                          «{item.inputs.userComment || item.inputs.notes || item.userComment}»
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Direct Link to Store if present */}
                   {item.inputs.productUrl && (

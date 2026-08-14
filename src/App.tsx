@@ -15,6 +15,7 @@ import { PwaGuideModal } from './components/PwaGuideModal';
 import { ShareModal } from './components/ShareModal';
 import { DisclaimerModal } from './components/DisclaimerModal';
 import { CalculationRatingWidget } from './components/CalculationRatingWidget';
+import { UserCommentCard } from './components/UserCommentCard';
 
 import { CalculationInputs, Currency, MetalRates, SavedCalculation, CalculationResult, UserRating } from './types';
 import { DEFAULT_METAL_RATES } from './data/metalRates';
@@ -22,7 +23,7 @@ import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
 import { EMPTY_CALCULATION_INPUTS } from './data/sampleItems';
 import { parseShareUrlFromLocation } from './lib/shareService';
-import { Save, History, Scale, CheckCircle2, Share2, Sparkles, X, AlertTriangle } from 'lucide-react';
+import { Save, History, Scale, CheckCircle2, Share2, Sparkles, X, AlertTriangle, MessageSquare } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
 
@@ -61,7 +62,7 @@ export default function App() {
   } | null>(null);
 
   const [saveSuccessNotice, setSaveSuccessNotice] = useState(false);
-  const [sharedBannerNotice, setSharedBannerNotice] = useState<{ title: string } | null>(null);
+  const [sharedBannerNotice, setSharedBannerNotice] = useState<{ title: string; comment?: string } | null>(null);
 
   // Check URL on startup for shared calculation parameters (?calc=...)
   useEffect(() => {
@@ -73,6 +74,7 @@ export default function App() {
       }
       setSharedBannerNotice({
         title: sharedData.inputs.title || 'Ювелірний виріб',
+        comment: sharedData.inputs.userComment || sharedData.inputs.notes,
       });
     }
   }, []);
@@ -136,6 +138,7 @@ export default function App() {
       inputs: { ...inputs, currency },
       result,
       rating: inputs.rating,
+      userComment: inputs.userComment || inputs.notes,
     };
     setSavedCalculations((prev) => [newSaved, ...prev]);
     setSaveSuccessNotice(true);
@@ -283,6 +286,12 @@ export default function App() {
                     Спільне посилання
                   </span>
                 </div>
+                {sharedBannerNotice.comment && (
+                  <div className="mt-1 p-2 rounded-lg bg-slate-950/80 border border-amber-500/30 text-amber-200 text-xs italic flex items-center gap-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span>Коментар автора: «{sharedBannerNotice.comment}»</span>
+                  </div>
+                )}
                 <p className="text-slate-400 text-xs mt-0.5">
                   Ви можете переглянути повну розбивку ціни, змінити параметри або зберегти розрахунок до своєї історії.
                 </p>
@@ -358,6 +367,15 @@ export default function App() {
 
             {/* 5. Gemini AI Advice Consultant */}
             <AiAdviceCard inputs={inputs} result={result} />
+
+            {/* 6. User Personal Comment & Notes */}
+            <UserCommentCard
+              comment={inputs.userComment || inputs.notes || ''}
+              onChangeComment={(text) =>
+                setInputs((prev) => ({ ...prev, userComment: text, notes: text }))
+              }
+              itemTitle={inputs.title}
+            />
 
           </div>
 

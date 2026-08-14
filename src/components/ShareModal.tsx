@@ -17,6 +17,7 @@ import {
   Heart,
   ThumbsUp,
   ThumbsDown,
+  MessageSquare,
 } from 'lucide-react';
 import QRCode from 'qrcode';
 import { CalculationInputs, CalculationResult, Currency } from '../types';
@@ -207,6 +208,13 @@ export const ShareModal: React.FC<ShareModalProps> = ({
                     <span>Не раджу</span>
                   </span>
                 )}
+              </div>
+            )}
+
+            {(inputs.userComment || inputs.notes) && (
+              <div className="mt-1.5 p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-200 flex items-start gap-1.5">
+                <MessageSquare className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+                <span className="line-clamp-2 italic">«{inputs.userComment || inputs.notes}»</span>
               </div>
             )}
           </div>

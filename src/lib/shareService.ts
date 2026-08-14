@@ -382,9 +382,10 @@ export function getShareUrl(
     params.set('hm', inputs.hallmarkCostUsd.toString());
   }
 
-  // Notes
-  if (inputs.notes && inputs.notes.trim()) {
-    params.set('nt', inputs.notes.trim());
+  // Notes & User Comment
+  const commentText = (inputs.userComment || inputs.notes || '').trim();
+  if (commentText) {
+    params.set('nt', commentText);
   }
 
   // Gemstones
@@ -555,7 +556,8 @@ export function parseShareUrlFromLocation(): { inputs: CalculationInputs; curren
         customEngravingCostUsd: customEngravingVal ? parseFloat(customEngravingVal) : undefined,
         wastagePercent: getParam('wg') ? parseFloat(getParam('wg')!) : 8,
         hallmarkCostUsd: hallmarkVal ? parseFloat(hallmarkVal) : 1.5,
-        notes: getParam('nt') || getParam('notes') || undefined,
+        notes: getParam('nt') || getParam('notes') || getParam('cm') || getParam('comment') || undefined,
+        userComment: getParam('nt') || getParam('notes') || getParam('cm') || getParam('comment') || undefined,
         gemstones: (getParam('g') || getParam('gems')) ? deserializeGemstones((getParam('g') || getParam('gems'))!) : [],
         rating: parsedRating,
       };
@@ -597,7 +599,7 @@ export function removeShareParamFromBrowserUrl(): void {
       'u', 'url', 'productUrl', 'l', 'labor', 'lc', 'laborCost',
       'co', 'coating', 'cco', 'sf', 'finish', 'csf', 'eg', 'engraving',
       'et', 'engravingText', 'ceg', 'wg', 'wastage', 'hm', 'hallmark',
-      'nt', 'notes', 'g', 'gems', 'gemstones', 'calc',
+      'nt', 'notes', 'cm', 'comment', 'g', 'gems', 'gemstones', 'calc',
       'st', 'stars', 'vt', 'vote', 'reaction', 'rt', 'rating',
     ];
     keysToRemove.forEach((k) => url.searchParams.delete(k));
@@ -652,6 +654,9 @@ export function formatShareContent(
       }`.trim()
     : null;
 
+  const userCommentText = (inputs.userComment || inputs.notes || '').trim();
+  const commentLine = userCommentText ? `💬 Коментар: «${userCommentText}»` : '';
+
   // Mode 2: Ultra-neat compact messenger message (default)
   if (mode === 'short_summary') {
     const lines = [
@@ -659,6 +664,7 @@ export function formatShareContent(
       `⚖️ ${metalName} ${inputs.purity} (${inputs.metalWeightGrams}г)${gemsList ? ` • ${gemsList}` : ''}`,
       inputs.storeName || inputs.brandName ? `🏬 ${[inputs.brandName, inputs.storeName].filter(Boolean).join(' • ')}` : '',
       ratingText ? `${ratingText}` : '',
+      commentLine ? `${commentLine}` : '',
       `💰 Ціна в магазині: ${formatMoney(result.retailPrice, currency)}`,
       `🪙 Собівартість сировини: ${formatMoney(result.rawMaterialsTotal, currency)} (націнка ${result.markupRatio}x)`,
       '',
@@ -677,6 +683,7 @@ export function formatShareContent(
     inputs.storeName ? `🏬 Магазин: ${inputs.storeName}` : '',
     inputs.brandName ? `🏷️ Бренд: ${inputs.brandName}` : '',
     ratingText ? `${ratingText}` : '',
+    commentLine ? `${commentLine}` : '',
     `⚖️ Матеріал: ${metalName} ${inputs.purity} (${inputs.metalWeightGrams} г)`,
     `✨ Вставки: ${gemsSummary}`,
     `🪙 Собівартість сировини (метал + каміння): ${formatMoney(result.rawMaterialsTotal, currency)}`,
