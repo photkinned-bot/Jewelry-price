@@ -2,6 +2,7 @@ import React from 'react';
 import { ShieldCheck, Coins, PiggyBank, HelpCircle, ArrowUpRight, Award, AlertCircle } from 'lucide-react';
 import { CalculationResult, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
+import { InfoHelper } from './InfoHelper';
 
 interface InvestmentCardProps {
   result: CalculationResult;
@@ -45,15 +46,19 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({ result, currency
           <h3 className="text-base font-bold font-serif text-white flex items-center space-x-2">
             <PiggyBank className="w-5 h-5 text-amber-400" />
             <span>Інвестиційна Оцінка та Ліквідність</span>
+            <InfoHelper helpKey="investmentGrade" />
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             Скільки реальної ринкової вартості залишається при терміновому перепродажу
           </p>
         </div>
 
-        <div className={`px-3 py-1 rounded-xl border text-xs font-bold flex items-center space-x-1.5 ${scoreColor}`}>
-          <Award className="w-4 h-4 shrink-0" />
-          <span>Клас {scoreGrade}</span>
+        <div className="flex items-center space-x-1.5">
+          <div className={`px-3 py-1 rounded-xl border text-xs font-bold flex items-center space-x-1.5 ${scoreColor}`}>
+            <Award className="w-4 h-4 shrink-0" />
+            <span>Клас {scoreGrade}</span>
+          </div>
+          <InfoHelper helpKey="investmentGrade" />
         </div>
       </div>
 
@@ -63,7 +68,10 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({ result, currency
         {/* Asset preservation ratio */}
         <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">Капіталоємність сировини</span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-semibold text-slate-300">Капіталоємність сировини</span>
+              <InfoHelper helpKey="assetPreservation" />
+            </div>
             <span className="text-xs font-bold text-amber-400 font-mono">{assetPreservationRatioPercent}%</span>
           </div>
           <div className="text-xl font-bold text-white font-mono">
@@ -83,7 +91,10 @@ export const InvestmentCard: React.FC<InvestmentCardProps> = ({ result, currency
         {/* Pawnshop Buyback Estimate */}
         <div className="p-4 bg-slate-800/60 rounded-xl border border-slate-700/80 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-slate-300">Ломбардна вартість (Скупка)</span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-semibold text-slate-300">Ломбардна вартість (Скупка)</span>
+              <InfoHelper helpKey="pawnshopEstimate" />
+            </div>
             <span className="text-xs font-bold text-sky-400 font-mono">
               ~ {retailPrice > 0 ? Math.round((pawnshopEstimate / retailPrice) * 100) : 0}%
             </span>

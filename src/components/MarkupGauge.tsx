@@ -2,6 +2,7 @@ import React from 'react';
 import { Percent, TrendingUp, AlertTriangle, CheckCircle, ShieldAlert, Award } from 'lucide-react';
 import { CalculationResult, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
+import { InfoHelper } from './InfoHelper';
 
 interface MarkupGaugeProps {
   result: CalculationResult;
@@ -57,22 +58,29 @@ export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency }) =>
           <h3 className="text-base font-bold font-serif text-white flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-amber-400" />
             <span>Індекс Націнки (Markup Index)</span>
+            <InfoHelper helpKey="markupIndex" />
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
-            Співвідношення ціни в магазині до чистої себевартості виготовлення
+            Співвідношення ціни в магазині до чистої собівартості виготовлення
           </p>
         </div>
 
-        <span className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center space-x-1.5 ${categoryConfig.badgeClass}`}>
-          <CategoryIcon className="w-3.5 h-3.5 shrink-0" />
-          <span>{categoryConfig.titleUk}</span>
-        </span>
+        <div className="flex items-center space-x-1.5">
+          <span className={`px-3 py-1 rounded-full border text-xs font-bold flex items-center space-x-1.5 ${categoryConfig.badgeClass}`}>
+            <CategoryIcon className="w-3.5 h-3.5 shrink-0" />
+            <span>{categoryConfig.titleUk}</span>
+          </span>
+          <InfoHelper helpKey="markupCategoryScale" />
+        </div>
       </div>
 
       {/* Main Metric Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="p-4 bg-slate-800/80 rounded-xl border border-slate-700/80">
-          <span className="text-xs text-slate-400 block mb-1">Коефіцієнт націнки</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-400">Коефіцієнт націнки</span>
+            <InfoHelper helpKey="markupRatio" />
+          </div>
           <div className="text-2xl font-black text-amber-400 font-mono tracking-tight">
             {markupRatio}x
           </div>
@@ -82,7 +90,10 @@ export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency }) =>
         </div>
 
         <div className="p-4 bg-slate-800/80 rounded-xl border border-slate-700/80">
-          <span className="text-xs text-slate-400 block mb-1">Націнка у відсотках</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-400">Націнка у відсотках</span>
+            <InfoHelper helpKey="markupPercent" />
+          </div>
           <div className="text-2xl font-black text-rose-400 font-mono tracking-tight">
             +{markupPercent}%
           </div>
@@ -92,7 +103,10 @@ export const MarkupGauge: React.FC<MarkupGaugeProps> = ({ result, currency }) =>
         </div>
 
         <div className="col-span-2 sm:col-span-1 p-4 bg-slate-800/80 rounded-xl border border-slate-700/80">
-          <span className="text-xs text-slate-400 block mb-1">Націнка у грошах</span>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-slate-400">Націнка у грошах</span>
+            <InfoHelper helpKey="markupAmount" />
+          </div>
           <div className="text-xl font-bold text-slate-100 font-mono">
             {formatMoney(markupAmount, currency)}
           </div>

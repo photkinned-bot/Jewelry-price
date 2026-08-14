@@ -14,6 +14,7 @@ import {
 import { CalculationResult, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { PieChart as PieIcon, BarChart2, ShieldCheck, Tag, Info } from 'lucide-react';
+import { InfoHelper } from './InfoHelper';
 
 interface PriceBreakdownChartProps {
   result: CalculationResult;
@@ -78,6 +79,7 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
           <h3 className="text-base font-bold font-serif text-white flex items-center space-x-2">
             <PieIcon className="w-5 h-5 text-amber-400" />
             <span>Розкладення Ціни (Price Breakdown)</span>
+            <InfoHelper helpKey="priceBreakdown" />
           </h3>
           <p className="text-xs text-slate-400 mt-0.5">
             Структура чека: за що саме ви сплачуєте у магазині
@@ -148,7 +150,10 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
         {/* Raw materials */}
         <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-300">Метал + Каміння</span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-semibold text-amber-300">Метал + Каміння</span>
+              <InfoHelper helpKey="rawMaterialsBreakdown" />
+            </div>
             <span className="text-xs font-bold text-amber-400 font-mono">{rawPercent}%</span>
           </div>
           <div className="text-lg font-bold text-white font-mono">
@@ -160,7 +165,10 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
         {/* Labor */}
         <div className="p-3.5 bg-sky-500/10 border border-sky-500/20 rounded-xl space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-sky-300">Робота, покриття та угар</span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-semibold text-sky-300">Робота, покриття та угар</span>
+              <InfoHelper helpKey="laborBreakdown" />
+            </div>
             <span className="text-xs font-bold text-sky-400 font-mono">{laborPercent}%</span>
           </div>
           <div className="text-lg font-bold text-white font-mono">
@@ -178,7 +186,10 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
         {/* Store markup */}
         <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-rose-300">Націнка бренду</span>
+            <div className="flex items-center space-x-1">
+              <span className="text-xs font-semibold text-rose-300">Націнка бренду</span>
+              <InfoHelper helpKey="storeMarkupBreakdown" />
+            </div>
             <span className="text-xs font-bold text-rose-400 font-mono">{markupPercentOfPrice}%</span>
           </div>
           <div className="text-lg font-bold text-white font-mono">
