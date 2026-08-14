@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { X, Trash2, Download, Printer, Tag, Calendar, ChevronRight } from 'lucide-react';
+import { X, Trash2, Download, Printer, Tag, Calendar, ChevronRight, ExternalLink } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 
@@ -138,6 +138,25 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                     </span>
                   </div>
                 </div>
+
+                {/* Direct Link to Store if present */}
+                {item.inputs.productUrl && (
+                  <a
+                    href={
+                      item.inputs.productUrl.startsWith('http://') || item.inputs.productUrl.startsWith('https://')
+                        ? item.inputs.productUrl
+                        : `https://${item.inputs.productUrl}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full py-1.5 px-3 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-sky-300 hover:text-sky-200 font-semibold text-[11px] transition-all flex items-center justify-center gap-1.5"
+                    title="Перейти на сторінку товару в інтернет-магазині"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <span className="truncate">Перейти до магазину / товару</span>
+                  </a>
+                )}
 
                 <button
                   type="button"

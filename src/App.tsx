@@ -17,7 +17,7 @@ import { CalculationInputs, Currency, MetalRates, SavedCalculation } from './typ
 import { DEFAULT_METAL_RATES } from './data/metalRates';
 import { fetchLiveRates } from './lib/rateService';
 import { calculateJewelryBreakdown } from './data/calculationEngine';
-import { SAMPLE_JEWELRY_ITEMS } from './data/sampleItems';
+import { EMPTY_CALCULATION_INPUTS } from './data/sampleItems';
 import { Save, History, Scale, CheckCircle2 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'jewelry_transparency_saved_v2';
@@ -26,8 +26,9 @@ export default function App() {
   const [currency, setCurrency] = useState<Currency>('UAH');
   const [metalRates, setMetalRates] = useState<MetalRates>(DEFAULT_METAL_RATES);
 
-  // Current calculation form state
-  const [inputs, setInputs] = useState<CalculationInputs>(SAMPLE_JEWELRY_ITEMS[0]);
+  // Current calculation form state - starts empty by default
+  const [inputs, setInputs] = useState<CalculationInputs>(EMPTY_CALCULATION_INPUTS);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   // Saved calculations history
   const [savedCalculations, setSavedCalculations] = useState<SavedCalculation[]>(() => {
@@ -106,6 +107,7 @@ export default function App() {
   };
 
   const handleApplyScannedData = (scanned: Partial<CalculationInputs>) => {
+    setSelectedTemplateId(null);
     setInputs((prev) => ({
       ...prev,
       ...scanned,
@@ -187,6 +189,8 @@ export default function App() {
               currency={currency}
               rates={metalRates}
               onOpenScanner={() => setIsScannerOpen(true)}
+              selectedTemplateId={selectedTemplateId}
+              onSelectTemplate={setSelectedTemplateId}
             />
           </div>
 
@@ -243,7 +247,10 @@ export default function App() {
         savedItems={savedCalculations}
         currency={currency}
         onDeleteSaved={handleDeleteSaved}
-        onSelectCalculatedItem={(item) => setInputs(item.inputs)}
+        onSelectCalculatedItem={(item) => {
+          setSelectedTemplateId(null);
+          setInputs(item.inputs);
+        }}
       />
 
       <HistoryDrawer
@@ -251,7 +258,10 @@ export default function App() {
         onClose={() => setIsHistoryOpen(false)}
         savedItems={savedCalculations}
         currency={currency}
-        onLoadItem={(item) => setInputs(item.inputs)}
+        onLoadItem={(item) => {
+          setSelectedTemplateId(null);
+          setInputs(item.inputs);
+        }}
         onDeleteItem={handleDeleteSaved}
         onClearAll={handleClearAllSaved}
       />

@@ -1,5 +1,5 @@
 import React from 'react';
-import { BarChart2, Award, Trash2, Tag } from 'lucide-react';
+import { BarChart2, Award, Trash2, Tag, ExternalLink } from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { ModalDialog } from './ModalDialog';
@@ -171,6 +171,33 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                     {savedItems.map((item) => (
                       <td key={item.id} className="py-2.5 px-3 font-bold text-amber-400 font-mono">
                         {item.result.assetPreservationRatioPercent}%
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Product URL */}
+                  <tr>
+                    <td className="py-2.5 px-3 text-slate-400">Сторінка в магазині</td>
+                    {savedItems.map((item) => (
+                      <td key={item.id} className="py-2.5 px-3">
+                        {item.inputs.productUrl ? (
+                          <a
+                            href={
+                              item.inputs.productUrl.startsWith('http://') || item.inputs.productUrl.startsWith('https://')
+                                ? item.inputs.productUrl
+                                : `https://${item.inputs.productUrl}`
+                            }
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center space-x-1 px-2 py-1 rounded bg-sky-500/15 hover:bg-sky-500/30 text-sky-300 text-[11px] font-medium transition-colors"
+                            title="Відкрити сторінку прикраси в інтернет-магазині"
+                          >
+                            <span>Магазин</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <span className="text-slate-600 text-[11px]">—</span>
+                        )}
                       </td>
                     ))}
                   </tr>

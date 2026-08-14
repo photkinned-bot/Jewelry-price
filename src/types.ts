@@ -120,6 +120,7 @@ export interface CalculationInputs {
   itemType: 'ring' | 'necklace' | 'earrings' | 'bracelet' | 'pendant' | 'other';
   brandName?: string;
   storeName?: string;
+  productUrl?: string; // Посилання на товар / прикрасу в інтернет-магазині
   metalType: MetalType;
   purity: number; // 585, 750, 925, etc.
   metalWeightGrams: number;

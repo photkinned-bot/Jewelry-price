@@ -21,7 +21,7 @@ export function calculateJewelryBreakdown(
   const pureMetalRateUsdPerGram = rates.pureMetalRatesUsd[inputs.metalType] || rates.pureMetalRatesUsd.gold;
 
   // 3. Weight & pure metal content
-  const totalWeightGrams = Math.max(0.1, inputs.metalWeightGrams || 0);
+  const totalWeightGrams = Math.max(0, inputs.metalWeightGrams || 0);
   const purityFraction = (inputs.purity || 585) / 1000;
   const pureMetalWeightGrams = totalWeightGrams * purityFraction;
 
@@ -94,7 +94,7 @@ export function calculateJewelryBreakdown(
   const finishingAndCoatingTotalUsd = coatingCostUsd + finishCostUsd + engravingCostUsd;
 
   // 10. Hallmark / Proba testing fee
-  const hallmarkCostUsd = inputs.hallmarkCostUsd || 1.5;
+  const hallmarkCostUsd = totalWeightGrams > 0 ? (inputs.hallmarkCostUsd ?? 1.5) : 0;
 
   // 11. Total Production Cost (Чиста собівартість виготовлення)
   const productionCostUsd =
