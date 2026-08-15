@@ -159,7 +159,13 @@ export const PriceBreakdownChart: React.FC<PriceBreakdownChartProps> = ({ result
           <div className="text-lg font-bold text-white font-mono">
             {formatMoney(rawMaterialsVal, currency)}
           </div>
-          <p className="text-[11px] text-slate-400">Чиста вартість сировини</p>
+          <p className="text-[11px] text-slate-400">
+            {result.gemstonesTotal > 0 ? (
+              <>Метал: {formatMoney(result.pureMetalPriceTotal, currency)} • Каміння: {formatMoney(result.gemstonesTotal, currency)}</>
+            ) : (
+              <>Чиста вартість сировини (тільки метал)</>
+            )}
+          </p>
         </div>
 
         {/* Labor */}

@@ -36,7 +36,338 @@ function safeParseJson(rawText: string) {
   }
 }
 
-// Fallback rule-based advice generation if AI service is unavailable
+// Resilient Gemini generateContent caller with fallback models and retry for 503/429
+const FALLBACK_MODELS = [
+  "gemini-3.7-flash",
+  "gemini-3.1-flash-lite",
+  "gemini-flash-latest",
+  "gemini-3.1-pro-preview",
+];
+
+async function generateWithModelFallback(
+  ai: GoogleGenAI,
+  requestPayload: {
+    contents: any;
+    config?: any;
+  }
+) {
+  let lastError: any = null;
+
+  for (const modelName of FALLBACK_MODELS) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: requestPayload.contents,
+          config: requestPayload.config,
+        });
+        if (response && response.text) {
+          return response;
+        }
+      } catch (err: any) {
+        lastError = err;
+        const status = err?.status || err?.code || (err?.message?.includes("503") ? 503 : (err?.message?.includes("429") ? 429 : 0));
+        const isTemporary = status === 503 || status === 429 || err?.message?.includes("high demand") || err?.message?.includes("UNAVAILABLE");
+        
+        console.warn(`Model ${modelName} (attempt ${attempt}) call failed (status: ${status}), ${isTemporary ? "temporary high demand detected" : "error"}:`, err?.message || err);
+        
+        if (attempt === 1 && isTemporary) {
+          // Brief backoff before retry on same model
+          await new Promise((r) => setTimeout(r, 600));
+        } else {
+          // Move on to next model
+          break;
+        }
+      }
+    }
+  }
+
+  throw lastError || new Error("Усі AI моделі наразі недоступні через пікове навантаження");
+}
+
+// Heuristic fallback parser when AI models are temporarily experiencing 503/high-demand
+function extractJewelryFromUserNotes(notes: string, rawImagesCount: number) {
+  const fullText = notes || "";
+  const lowerText = fullText.toLowerCase();
+
+  let itemType = "ring";
+  if (/сережк|серьг/i.test(lowerText)) itemType = "earrings";
+  else if (/ланцюж|цеп|колье|кольє|намисто/i.test(lowerText)) itemType = "necklace";
+  else if (/браслет/i.test(lowerText)) itemType = "bracelet";
+  else if (/підвіс|подвес|кулон/i.test(lowerText)) itemType = "pendant";
+  else if (/хрестик|крестик|ладанка|обручк/i.test(lowerText)) itemType = "other";
+
+  let metalType = "gold";
+  let purity = 585;
+  if (/срібл|серебр|925/i.test(lowerText) && !/позолот/i.test(lowerText)) {
+    metalType = "silver";
+    purity = 925;
+  } else if (/платин|950/i.test(lowerText)) {
+    metalType = "platinum";
+    purity = 950;
+  } else if (/паладі|паллади/i.test(lowerText)) {
+    metalType = "palladium";
+    purity = 500;
+  }
+
+  const purityMatch = fullText.match(/\b(375|585|750|925|950|999)\b/);
+  if (purityMatch) purity = Number(purityMatch[1]);
+
+  let metalWeightGrams: number | null = null;
+  const weightMatch =
+    fullText.match(/(?:вага|вес|weight)[\s:=]*([0-9]+[.,]?[0-9]*)\s*(?:г|g|гр|грамм)?/i) ||
+    fullText.match(/\b([0-9]+[.,][0-9]{1,2})\s*(?:г|g|гр)\b/i);
+  if (weightMatch && weightMatch[1]) {
+    const val = parseFloat(weightMatch[1].replace(",", "."));
+    if (val > 0.1 && val < 500) metalWeightGrams = val;
+  }
+
+  let price: number | null = null;
+  const priceMatch =
+    fullText.match(/(?:ціна|цена|price|вартість)[\s:=]*([0-9\s]{3,})/i) ||
+    fullText.match(/([0-9\s]{3,})\s*(?:грн|uah|usd|\$|€|eur|₴)/i);
+  if (priceMatch && priceMatch[1]) {
+    const cleanNum = priceMatch[1].replace(/\s/g, "");
+    const val = parseFloat(cleanNum);
+    if (!isNaN(val) && val > 0) price = val;
+  }
+
+  let currency = "UAH";
+  if (/\$|usd|дол/i.test(lowerText)) currency = "USD";
+  else if (/€|eur|євро|евро/i.test(lowerText)) currency = "EUR";
+
+  const gemstones: any[] = [];
+  if (/діамант|диамант|бриллиант|diamond/i.test(lowerText)) {
+    gemstones.push({
+      type: "Діамант",
+      count: 1,
+      carats: 0.05,
+      clarity: "VS2",
+      color: "G",
+      origin: "natural",
+    });
+  } else if (/фіаніт|фианит|циркон|цирконій|zirconia/i.test(lowerText)) {
+    gemstones.push({
+      type: "Фіаніт",
+      count: 3,
+      carats: 0.03,
+      clarity: "",
+      color: "White",
+      origin: "synthetic",
+    });
+  } else if (/смарагд|изумруд|emerald/i.test(lowerText)) {
+    gemstones.push({
+      type: "Смарагд",
+      count: 1,
+      carats: 0.2,
+      clarity: "",
+      color: "Green",
+      origin: "natural",
+    });
+  } else if (/топаз|topaz/i.test(lowerText)) {
+    gemstones.push({
+      type: "Топаз",
+      count: 1,
+      carats: 0.5,
+      clarity: "",
+      color: "Blue",
+      origin: "natural",
+    });
+  }
+
+  return {
+    title: notes ? `Ювелірний виріб (${metalType === 'gold' ? 'Золото' : metalType === 'silver' ? 'Срібло' : 'Метал'} ${purity})` : "Ювелірний виріб",
+    itemType,
+    brand: null,
+    store: null,
+    productUrl: null,
+    photoUrl: null,
+    metalType,
+    purity,
+    metalWeightGrams,
+    price,
+    currency,
+    coatingType: /роді|родиир/i.test(lowerText) ? "rhodium_white" : /позолот/i.test(lowerText) ? "gilding" : "none",
+    surfaceFinish: /матов|сатин/i.test(lowerText) ? "matte_sandblast" : "polished",
+    gemstones,
+    aiNotes: "Увага: через пікове навантаження на AI, базові параметри витягнуто з введених даних. Перевірте значення у формі.",
+  };
+}
+
+// Heuristic fallback parser from extracted webpage data when Gemini is temporarily unavailable
+function extractJewelryHeuristically(pageData: {
+  targetUrl: string;
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  jsonLdBlocks?: any[];
+  textContent: string;
+}): any {
+  const fullText = `${pageData.title || ""} ${pageData.description || ""} ${pageData.textContent || ""}`;
+  const lowerText = fullText.toLowerCase();
+
+  // 1. Detect item type
+  let itemType = "ring";
+  if (/сережк|серьг/i.test(lowerText)) itemType = "earrings";
+  else if (/ланцюж|цеп|колье|кольє|намисто/i.test(lowerText)) itemType = "necklace";
+  else if (/браслет/i.test(lowerText)) itemType = "bracelet";
+  else if (/підвіс|подвес|кулон/i.test(lowerText)) itemType = "pendant";
+  else if (/хрестик|крестик|ладанка|обручк/i.test(lowerText)) itemType = "other";
+
+  // 2. Detect metal & purity
+  let metalType = "gold";
+  let purity = 585;
+
+  if (/срібл|серебр|925/i.test(lowerText) && !/позолот/i.test(lowerText)) {
+    metalType = "silver";
+    purity = 925;
+  } else if (/платин|950/i.test(lowerText)) {
+    metalType = "platinum";
+    purity = 950;
+  } else if (/паладі|паллади/i.test(lowerText)) {
+    metalType = "palladium";
+    purity = 500;
+  }
+
+  const purityMatch = fullText.match(/\b(375|585|750|925|950|999)\b/);
+  if (purityMatch) {
+    purity = Number(purityMatch[1]);
+  }
+
+  // 3. Detect price from JSON-LD or text
+  let price = 0;
+  let currency = "UAH";
+
+  if (Array.isArray(pageData.jsonLdBlocks)) {
+    for (const block of pageData.jsonLdBlocks) {
+      const checkOffer = (obj: any) => {
+        if (!obj) return;
+        if (obj.offers) {
+          const offer = Array.isArray(obj.offers) ? obj.offers[0] : obj.offers;
+          if (offer?.price) price = Number(offer.price);
+          if (offer?.priceCurrency) currency = offer.priceCurrency;
+        } else if (obj.price) {
+          price = Number(obj.price);
+          if (obj.priceCurrency) currency = obj.priceCurrency;
+        }
+      };
+      checkOffer(block);
+      if (block["@graph"] && Array.isArray(block["@graph"])) {
+        block["@graph"].forEach(checkOffer);
+      }
+    }
+  }
+
+  if (!price || isNaN(price)) {
+    const priceMatch = fullText.match(/(\d[\d\s]{2,})\s*(?:грн|UAH|₴)/i);
+    if (priceMatch) {
+      const numStr = priceMatch[1].replace(/\s/g, "");
+      price = Number(numStr) || 0;
+    }
+  }
+
+  // 4. Detect weight
+  let metalWeightGrams = 0;
+  const weightMatch =
+    fullText.match(/(?:вага|вес|weight|середня вага)[\s:]*([0-9]+[.,]?[0-9]*)\s*(?:г|g|гр|грамм)?/i) ||
+    fullText.match(/([0-9]+[.,][0-9]{1,2})\s*(?:г|g|гр)\b/i);
+  if (weightMatch && weightMatch[1]) {
+    const parsedWeight = parseFloat(weightMatch[1].replace(",", "."));
+    if (parsedWeight > 0.1 && parsedWeight < 500) {
+      metalWeightGrams = parsedWeight;
+    }
+  }
+
+  // 5. Detect brand / store
+  let brand = "";
+  let store = "";
+  if (/zolotiyvik/i.test(pageData.targetUrl) || /золотий вік/i.test(fullText)) {
+    brand = "Золотий Вік";
+    store = "Золотий Вік";
+  } else if (/sovajewelry|sova/i.test(pageData.targetUrl) || /\bsova\b/i.test(fullText)) {
+    brand = "SOVA";
+    store = "SOVA Jewelry";
+  } else if (/ukrzoloto|укрзолото/i.test(pageData.targetUrl) || /укрзолото/i.test(fullText)) {
+    brand = "Укрзолото";
+    store = "Укрзолото";
+  } else if (/zarina/i.test(pageData.targetUrl) || /zarina/i.test(fullText)) {
+    brand = "Zarina";
+    store = "Ювелірний дім Zarina";
+  } else if (/aurum/i.test(pageData.targetUrl) || /aurum/i.test(fullText)) {
+    brand = "AURUM";
+    store = "AURUM";
+  } else if (/kuz\.ua|кюз/i.test(pageData.targetUrl) || /кюз/i.test(fullText)) {
+    brand = "Київський Ювелірний Завод";
+    store = "КЮЗ";
+  }
+
+  // 6. Detect gemstones
+  const gemstones: any[] = [];
+  if (/діамант|бриллиант|diamond/i.test(lowerText)) {
+    gemstones.push({
+      type: "Діамант",
+      count: 1,
+      carats: 0.05,
+      clarity: "VS2",
+      color: "G",
+      origin: "natural",
+    });
+  } else if (/фіаніт|фианит|циркон|цирконій|zirconia/i.test(lowerText)) {
+    gemstones.push({
+      type: "Фіаніт",
+      count: 3,
+      carats: 0.03,
+      clarity: "",
+      color: "White",
+      origin: "synthetic",
+    });
+  } else if (/смарагд|изумруд|emerald/i.test(lowerText)) {
+    gemstones.push({
+      type: "Смарагд",
+      count: 1,
+      carats: 0.2,
+      clarity: "",
+      color: "Green",
+      origin: "natural",
+    });
+  } else if (/топаз|topaz/i.test(lowerText)) {
+    gemstones.push({
+      type: "Топаз",
+      count: 1,
+      carats: 0.5,
+      clarity: "",
+      color: "Blue",
+      origin: "natural",
+    });
+  } else if (/перл|жемчуг|pearl/i.test(lowerText)) {
+    gemstones.push({
+      type: "Перли",
+      count: 1,
+      carats: 0.3,
+      clarity: "",
+      color: "White",
+      origin: "natural",
+    });
+  }
+
+  return {
+    title: pageData.title || "Ювелірний виріб",
+    itemType,
+    brand: brand || null,
+    store: store || null,
+    productUrl: pageData.targetUrl,
+    photoUrl: pageData.imageUrl || "",
+    metalType,
+    purity,
+    metalWeightGrams,
+    price,
+    currency,
+    coatingType: /роді|родиир/i.test(lowerText) ? "rhodium_white" : /позолот/i.test(lowerText) ? "gilding" : "none",
+    surfaceFinish: /матов|сатин/i.test(lowerText) ? "matte_sandblast" : "polished",
+    gemstones,
+    aiNotes: "Параметри витягнуто зі структури та характеристик сторінки магазину.",
+  };
+}
 function generateRuleBasedAdvice(calc: any) {
   const markupPercent = Number(calc.markupPercent) || 0;
   const retailPrice = Number(calc.retailPrice) || 0;
@@ -410,24 +741,124 @@ app.get("/api/metal-rates", async (req, res) => {
   }
 });
 
-// Analyze images (tag, receipt, or jewelry piece) using Gemini Vision API
+// Helper function to fetch and extract rich product page data from online jewelry store URL
+async function fetchAndExtractProductPage(url: string) {
+  let targetUrl = url.trim();
+  if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+    targetUrl = "https://" + targetUrl;
+  }
+
+  const response = await fetch(targetUrl, {
+    headers: {
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+      "Accept-Language": "uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+    },
+    signal: AbortSignal.timeout(12000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Не вдалося завантажити сторінку товару (HTTP ${response.status})`);
+  }
+
+  const html = await response.text();
+  const meta = extractHtmlMetadata(html, targetUrl);
+
+  // Extract structured JSON-LD schemas
+  const jsonLdBlocks: any[] = [];
+  const jsonLdMatches = html.matchAll(/<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  for (const m of jsonLdMatches) {
+    try {
+      const parsed = JSON.parse(m[1]);
+      jsonLdBlocks.push(parsed);
+    } catch {}
+  }
+
+  // Strip script, style, and svg tags for clean text extraction
+  const cleanHtml = html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, " ");
+
+  // Extract text representation
+  const textContent = cleanHtml
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 16000);
+
+  // Attempt to fetch product image as base64 so Gemini Vision can also inspect the jewelry piece
+  let imageBase64: string | null = null;
+  if (meta.imageUrl && (meta.imageUrl.startsWith("http://") || meta.imageUrl.startsWith("https://"))) {
+    try {
+      const imgRes = await fetch(meta.imageUrl, {
+        headers: { "User-Agent": "Mozilla/5.0" },
+        signal: AbortSignal.timeout(6000),
+      });
+      if (imgRes.ok) {
+        const arrayBuf = await imgRes.arrayBuffer();
+        const base64 = Buffer.from(arrayBuf).toString("base64");
+        const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+        imageBase64 = `data:${contentType};base64,${base64}`;
+      }
+    } catch (imgErr) {
+      console.warn("Could not fetch product image for vision analysis:", imgErr);
+    }
+  }
+
+  return {
+    targetUrl,
+    title: meta.title,
+    description: meta.description,
+    imageUrl: meta.imageUrl,
+    jsonLdBlocks,
+    textContent,
+    imageBase64,
+  };
+}
+
+// Analyze jewelry from product store URL, uploaded images, or combination using Gemini
 app.post("/api/analyze-jewelry", async (req, res) => {
   try {
-    const { imagesBase64, imageBase64, mimeType = "image/jpeg", userNotes } = req.body;
+    const { url, imagesBase64, imageBase64, mimeType = "image/jpeg", userNotes } = req.body || {};
 
     const rawImages: string[] = Array.isArray(imagesBase64) && imagesBase64.length > 0
-      ? imagesBase64
+      ? [...imagesBase64]
       : (imageBase64 ? [imageBase64] : []);
 
-    if (rawImages.length === 0) {
-      return res.status(400).json({ error: "Будь ласка, надайте хоча б одне зображення для аналізу" });
+    const hasUrl = typeof url === "string" && url.trim().length > 0;
+
+    if (!hasUrl && rawImages.length === 0) {
+      return res.status(400).json({
+        error: "Будь ласка, вкажіть посилання на товар у магазині або завантажте фото біржі чи виробу",
+      });
     }
 
     const ai = getAiClient();
     if (!ai) {
       return res.status(400).json({
-        error: "Для автоматичного розпізнавання фото потрібен ключ GEMINI_API_KEY. Будь ласка, вкажіть GEMINI_API_KEY у налаштуваннях середовища.",
+        error: "Для автоматичного AI розпізнавання потрібен ключ GEMINI_API_KEY. Будь ласка, вкажіть GEMINI_API_KEY у налаштуваннях середовища.",
       });
+    }
+
+    let pageData: Awaited<ReturnType<typeof fetchAndExtractProductPage>> | null = null;
+    if (hasUrl) {
+      try {
+        pageData = await fetchAndExtractProductPage(url);
+        // If webpage has an image and no images were uploaded by the user, attach it
+        if (pageData.imageBase64 && rawImages.length === 0) {
+          rawImages.push(pageData.imageBase64);
+        }
+      } catch (err: any) {
+        console.warn("Failed to fetch product webpage directly:", err);
+      }
     }
 
     const imageParts = rawImages.map((img) => {
@@ -440,66 +871,136 @@ app.post("/api/analyze-jewelry", async (req, res) => {
       };
     });
 
-    const promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
-Тобі надано ${rawImages.length > 1 ? `${rawImages.length} зображень одного ювелірного виробу (це можуть бути лицьова і зворотна сторона біржової бирки, фото самого виробу, клейма/проби, чек або сертифікат)` : "зображення ювелірного виробу (бирка, чек, сертифікат або сам виріб)"}.
-Уважно проаналізуй ВСІ надані зображення, зістав та витягни або оціни всі параметри виробу у форматі JSON:
-- Назва виробу (title)
-- Тип виробу (itemType: "ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
-- Метал (metalType: "gold" | "silver" | "platinum" | "palladium")
-- Проба (purity: число, наприклад 585, 750, 925, 950)
-- Вага в грамах (metalWeightGrams: число або null якщо не видно)
-- Ціна в магазині (price: число або null якщо не видно)
-- Валюта (currency: "UAH" | "USD" | "EUR")
-- Бренд (brand: назва бренду або виробника, або null)
-- Вставки каміння (gemstones: масив об'єктів з полями: type (напр. "Діамант", "Смарагд", "Фіаніт"), count (кількість), carats (вага в каратах на 1 камінь або сумарно), clarity (чистота, напр "VVS2", "VS1", "3/4" або null), color (колір, напр "D", "G", "4" або null), origin ("natural" | "lab" | "synthetic")))
-- Нотатки AI (aiNotes: стислий аналіз того, що зображено на фотографіях та які параметри були розпізнані).
-${userNotes ? `Додаткова інформація від користувача: ${userNotes}` : ""}`;
+    let promptText = "";
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.7-flash",
-      contents: [
-        ...imageParts,
-        { text: promptText },
-      ],
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            itemType: { type: Type.STRING },
-            metalType: { type: Type.STRING },
-            purity: { type: Type.NUMBER },
-            metalWeightGrams: { type: Type.NUMBER },
-            price: { type: Type.NUMBER },
-            currency: { type: Type.STRING },
-            brand: { type: Type.STRING },
-            gemstones: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  type: { type: Type.STRING },
-                  count: { type: Type.NUMBER },
-                  carats: { type: Type.NUMBER },
-                  clarity: { type: Type.STRING },
-                  color: { type: Type.STRING },
-                  origin: { type: Type.STRING },
+    if (pageData) {
+      promptText = `Ти — провідний експерт-гемолог, оцінювач ювелірних виробів та аналітик цін в ювелірних магазинах.
+Тобі надано інформацію та характеристики зі сторінки товару в інтернет-магазині:
+Посилання: ${pageData.targetUrl}
+Заголовок сторінки: ${pageData.title || "Не вказано"}
+Опис товару: ${pageData.description || "Не вказано"}
+JSON-LD структуровані дані: ${JSON.stringify(pageData.jsonLdBlocks).slice(0, 4000)}
+Текст та характеристики зі сторінки товару:
+${pageData.textContent.slice(0, 8000)}
+
+${rawImages.length > 0 ? "Також надано зображення товару для візуального аналізу." : ""}
+${userNotes ? `\nВАЖЛИВО! КОРИСТУВАЧ ВКАЗАВ ПРИМІТКИ / ПАРАМЕТРИ (МАЮТЬ НАЙВИЩИЙ ПРІОРИТЕТ, якщо вага, ціна або характеристики вказані тут, ОБОВ'ЯЗКОВО візьми їх): "${userNotes}"\n` : ""}
+
+Уважно проаналізуй всі дані зі сторінки та фотографій, витягни всі параметри прикраси у форматі JSON:
+- title: повна та чітка назва прикраси українською мовою (наприклад: "Золота каблучка з фіанітами", "Сережки з білого золота 585 з діамантами")
+- itemType: тип виробу ("ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
+- brand: бренд або виробник (наприклад "Золотий Вік", "SOVA", "Zarina", "КЮЗ", "Укрзолото", "Столична Ювелірна Фабрика", "Pandora", "Cartier" або назва магазину)
+- store: назва інтернет-магазину або платформи
+- productUrl: ${JSON.stringify(pageData.targetUrl)}
+- photoUrl: ${JSON.stringify(pageData.imageUrl || "")}
+- metalType: метал ("gold" | "silver" | "platinum" | "palladium")
+- purity: числове значення проби (наприклад 585, 750, 925, 950, 999). Якщо золото 585 -> 585.
+- metalWeightGrams: вага виробу в грамах як число (наприклад 3.45). Якщо вага не вказана на сайті і не вказана в примітках, встанови null (НЕ вигадуй зі стелі!).
+- price: актуальна ціна покупки в магазині (число, акційна/поточна ціна зі знижкою якщо є).
+- currency: валюта ("UAH" | "USD" | "EUR")
+- coatingType: тип покриття ("none" | "rhodium_white" | "rhodium_black" | "gilding" | "blackening" | "combined")
+- surfaceFinish: характер поверхні ("polished" | "matte_sandblast" | "satin_brushed" | "diamond_cut" | "combined_texture")
+- gemstones: масив вставок каміння (якщо є) з полями:
+    - type: назва каменя українською ("Діамант", "Фіаніт", "Смарагд", "Сапфір", "Топаз", "Перли" тощо)
+    - count: кількість каменів (число)
+    - carats: вага в каратах на 1 камінь або сумарно (число)
+    - clarity: чистота якщо вказана (напр "VS2", "3" або "")
+    - color: колір якщо вказаний (напр "G", "4" або "")
+    - origin: походження ("natural" для натуральних/дорогоцінних, "synthetic" для фіанітів/цирконію, "lab" для вирощених)
+- aiNotes: стислий експертний коментар гемолога (1-2 речення про витягнуті характеристики товару).`;
+    } else {
+      promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
+Тобі надано ${rawImages.length > 1 ? `${rawImages.length} зображень одного ювелірного виробу (лицьова і зворотна сторона біржової бирки, фото самого виробу, клейма/проби, чек або сертифікат)` : "зображення ювелірного виробу (бирка, чек, сертифікат або сам виріб)"}.
+${userNotes ? `\nВАЖЛИВО! КОРИСТУВАЧ ВКАЗАВ ДОДАТКОВІ ПРИМІТКИ (МАЮТЬ НАЙВИЩИЙ ПРІОРИТЕТ, якщо вага, ціна чи проба вказані тут, ОБОВ'ЯЗКОВО підстав їх): "${userNotes}"\n` : ""}
+
+Уважно проаналізуй ВСІ надані зображення, зістав та витягни параметри виробу у форматі JSON:
+- title: назва виробу українською мовою
+- itemType: тип виробу ("ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
+- brand: бренд або виробник (або null)
+- store: магазин (або null)
+- productUrl: null
+- photoUrl: null
+- metalType: метал ("gold" | "silver" | "platinum" | "palladium")
+- purity: проба (число, наприклад 585, 750, 925, 950)
+- metalWeightGrams: вага металу або виробу в грамах як число (якщо вказана в примітках або чітко видно на бирці). Якщо ваги немає ні на бирці, ні в примітках, встанови null (НЕ вигадуй 3.5 чи будь-яку іншу цифру!).
+- price: ціна в магазині (число, якщо вказана на бирці чи в примітках, інакше null)
+- currency: валюта ("UAH" | "USD" | "EUR")
+- coatingType: тип покриття ("none" | "rhodium_white" | "rhodium_black" | "gilding" | "blackening" | "combined")
+- surfaceFinish: характер поверхні ("polished" | "matte_sandblast" | "satin_brushed" | "diamond_cut" | "combined_texture")
+- gemstones: ОБОВ'ЯЗКОВО витягни всі вставки/каміння з бирки (наприклад '1 Бр. Кр57 0.05 3/4', '3 Фіаніти', 'Топаз 0.5ct', 'Смарагд') як масив об'єктів { type, count, carats, clarity, color, origin }
+- aiNotes: стислий аналіз того, що зображено на фотографіях та які параметри були розпізнані.`;
+    }
+
+    let parsedData: any = {};
+    try {
+      const response = await generateWithModelFallback(ai, {
+        contents: [
+          ...imageParts,
+          { text: promptText },
+        ],
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              title: { type: Type.STRING },
+              itemType: { type: Type.STRING },
+              brand: { type: Type.STRING },
+              store: { type: Type.STRING },
+              productUrl: { type: Type.STRING },
+              photoUrl: { type: Type.STRING },
+              metalType: { type: Type.STRING },
+              purity: { type: Type.NUMBER },
+              metalWeightGrams: { type: Type.NUMBER },
+              price: { type: Type.NUMBER },
+              currency: { type: Type.STRING },
+              coatingType: { type: Type.STRING },
+              surfaceFinish: { type: Type.STRING },
+              gemstones: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    type: { type: Type.STRING },
+                    count: { type: Type.NUMBER },
+                    carats: { type: Type.NUMBER },
+                    clarity: { type: Type.STRING },
+                    color: { type: Type.STRING },
+                    origin: { type: Type.STRING },
+                  },
                 },
               },
+              aiNotes: { type: Type.STRING },
             },
-            aiNotes: { type: Type.STRING },
           },
         },
-      },
-    });
+      });
 
-    const text = response.text || "{}";
-    const parsedData = safeParseJson(text);
+      const text = response.text || "{}";
+      parsedData = safeParseJson(text);
+    } catch (aiErr: any) {
+      console.warn("AI generation failed with all models, checking fallback options:", aiErr);
+      if (pageData) {
+        // Use smart heuristic fallback from scraped page data
+        parsedData = extractJewelryHeuristically(pageData);
+      } else if (userNotes || rawImages.length > 0) {
+        // Use smart heuristic fallback from user notes and input
+        parsedData = extractJewelryFromUserNotes(userNotes || "", rawImages.length);
+      } else {
+        throw aiErr;
+      }
+    }
+
+    // Fallbacks if pageData has URL or photo
+    if (pageData) {
+      if (!parsedData.productUrl) parsedData.productUrl = pageData.targetUrl;
+      if (!parsedData.photoUrl && pageData.imageUrl) parsedData.photoUrl = pageData.imageUrl;
+    }
+
     res.json({ success: true, data: parsedData });
   } catch (error: any) {
     console.error("Error in /api/analyze-jewelry:", error);
-    res.status(500).json({ error: error?.message || "Помилка аналізу зображення" });
+    res.status(500).json({ error: error?.message || "Помилка аналізу ювелірного виробу" });
   }
 });
 
@@ -548,8 +1049,7 @@ ${calculationDetails.userComment || calculationDetails.notes ? `- Комента
 5. advice (порада покупцеві: аргументи для торгу саме в цьому магазині/для цього бренду, на що звернути увагу)
 6. recommendedDiscountPercent (рекомендована знижка у відсотках, яку доречно просити)`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+    const response = await generateWithModelFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",

@@ -175,11 +175,28 @@ export default function App() {
 
   const handleApplyScannedData = (scanned: Partial<CalculationInputs>) => {
     setSelectedTemplateId(null);
-    setInputs((prev) => ({
-      ...prev,
-      ...scanned,
-      id: 'calc-' + Date.now(),
-    }));
+    setInputs((prev) => {
+      const next: CalculationInputs = {
+        ...prev,
+        ...scanned,
+        id: 'calc-' + Date.now(),
+        // Keep existing photo if scanner didn't provide a new product photo (e.g. from tag scan)
+        photoUrl: scanned.photoUrl || prev.photoUrl,
+        // Only override weight if scanned weight is positive
+        metalWeightGrams: (scanned.metalWeightGrams && scanned.metalWeightGrams > 0)
+          ? scanned.metalWeightGrams
+          : (prev.metalWeightGrams || 0),
+        // Only override price if scanned price is positive
+        retailPrice: (scanned.retailPrice && scanned.retailPrice > 0)
+          ? scanned.retailPrice
+          : (prev.retailPrice || 0),
+        // Apply scanned gemstones if array is provided
+        gemstones: Array.isArray(scanned.gemstones)
+          ? scanned.gemstones
+          : (prev.gemstones || []),
+      };
+      return next;
+    });
   };
 
   return (

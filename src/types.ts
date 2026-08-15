@@ -176,6 +176,8 @@ export interface CalculationResult {
   
   // Конвертовані значення в обрану валюту
   displayCurrency: Currency;
+  pureMetalPriceTotal: number;
+  gemstonesTotal: number;
   rawMaterialsTotal: number;
   productionCostTotal: number;
   laborAndLossesTotal: number;

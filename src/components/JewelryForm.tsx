@@ -733,6 +733,8 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         <GemstoneInput
           gemstones={inputs.gemstones || []}
           onChange={(gemstones) => handleFieldChange({ gemstones })}
+          currency={currency}
+          rates={rates}
         />
       </div>
 

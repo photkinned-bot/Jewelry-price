@@ -9,13 +9,20 @@ import {
   Clipboard,
   CheckCircle2,
   Trash2,
-  Plus,
-  X,
+  Link2,
+  Globe,
   Layers,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Gem,
+  Scale,
+  Tag,
+  Store,
+  Check
 } from 'lucide-react';
 import { CalculationInputs } from '../types';
-import { analyzeJewelryImageClientSide, getStoredUserApiKey, saveUserApiKey } from '../lib/geminiClientService';
+import { analyzeJewelryUnified, getStoredUserApiKey, saveUserApiKey } from '../lib/geminiClientService';
+import { isValidWebUrl, normalizeUrl } from '../lib/productImageService';
+import { calculateGemstoneUsdValue } from '../data/gemstoneValuation';
 import { ModalDialog } from './ModalDialog';
 
 interface AiScannerModalProps {
@@ -24,21 +31,52 @@ interface AiScannerModalProps {
   onApplyData: (data: Partial<CalculationInputs>) => void;
 }
 
+type ScannerMode = 'url' | 'photo';
+
+// Helpful sample store links for 1-click test
+const SAMPLE_STORE_URLS = [
+  {
+    name: 'Золотий Вік (Каблучка 585)',
+    url: 'https://zolotiyvik.ua/ua/kolco-iz-krasnogo-zolota-s-fianitami-art-110291410101.html',
+    desc: 'Золото 585, фіаніти, родіювання',
+  },
+  {
+    name: 'SOVA (Сережки з діамантом)',
+    url: 'https://sovajewelry.com/ua/sergi-iz-belogo-zolota-s-brilliantom-art-020358510201/',
+    desc: 'Біле золото 585, натуральний діамант',
+  },
+  {
+    name: 'Укрзолото (Ланцюжок 585)',
+    url: 'https://ukrzoloto.ua/uk/tsepochka-iz-krasnogo-zolota-pletenie-mona-liza-art-060410.html',
+    desc: 'Золото 585, плетіння Мона Ліза',
+  },
+  {
+    name: 'Zarina (Підвіска з топазом)',
+    url: 'https://zarina.ua/ua/pidviska-z-zolota-z-topazom-ta-fianitamy-art-71089201.html',
+    desc: 'Золото 585, блакитний топаз, фіаніти',
+  },
+];
+
 export const AiScannerModal: React.FC<AiScannerModalProps> = ({
   isOpen,
   onClose,
   onApplyData,
 }) => {
+  const [mode, setMode] = useState<ScannerMode>('url');
+  const [productUrl, setProductUrl] = useState<string>('');
   const [selectedImages, setSelectedImages] = useState<string[]>([]);
   const [userNotes, setUserNotes] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadingStep, setLoadingStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const [pasteSuccess, setPasteSuccess] = useState<boolean>(false);
 
+  // Scanned result preview before applying
+  const [scannedResult, setScannedResult] = useState<Partial<CalculationInputs> | null>(null);
+
   // Key input state for GitHub Pages / static hosting
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
-  const [showKeyPrompt, setShowKeyPrompt] = useState<boolean>(false);
 
   const MAX_IMAGES = 6;
 
@@ -46,6 +84,8 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
     if (isOpen) {
       setApiKeyInput(getStoredUserApiKey());
       setError(null);
+      setScannedResult(null);
+      setLoading(false);
     }
   }, [isOpen]);
 
@@ -113,13 +153,14 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
         filesToProcess.map((f) => compressImage(f))
       );
       setSelectedImages((prev) => [...prev, ...compressedResults]);
+      setMode('photo');
     } catch (err: any) {
       console.error('Image compression error:', err);
       setError(err?.message || 'Не вдалося обробити одне або декілька фото');
     }
   };
 
-  // Support direct clipboard paste (Ctrl+V or context menu paste)
+  // Support direct clipboard paste (URL or Image)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -147,17 +188,14 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
         return;
       }
 
-      // If user pasted base64 data URL while not focused on input
       if (!isTextInput) {
         const pastedText = e.clipboardData?.getData('text');
-        if (pastedText && pastedText.startsWith('data:image/')) {
+        if (pastedText && isValidWebUrl(pastedText)) {
           e.preventDefault();
-          if (selectedImages.length < MAX_IMAGES) {
-            setSelectedImages((prev) => [...prev, pastedText]);
-            setError(null);
-            setPasteSuccess(true);
-            setTimeout(() => setPasteSuccess(false), 2000);
-          }
+          setProductUrl(pastedText.trim());
+          setMode('url');
+          setPasteSuccess(true);
+          setTimeout(() => setPasteSuccess(false), 2000);
         }
       }
     };
@@ -171,46 +209,29 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
   const handlePasteFromClipboard = async () => {
     try {
       if (!navigator.clipboard) {
-        setError('Буфер обміну не підтримується браузером. Натисніть Ctrl+V для вставки.');
+        setError('Буфер обміну не підтримується браузером. Натисніть Ctrl+V.');
         return;
       }
 
-      // 1. Try navigator.clipboard.read() for images
-      if (navigator.clipboard.read) {
-        try {
-          const items = await navigator.clipboard.read();
-          const imageFiles: File[] = [];
-          for (const item of items) {
-            const imageType = item.types.find((t) => t.startsWith('image/'));
-            if (imageType) {
-              const blob = await item.getType(imageType);
-              imageFiles.push(new File([blob], `clipboard-${Date.now()}.png`, { type: imageType }));
-            }
-          }
-          if (imageFiles.length > 0) {
-            await processFiles(imageFiles);
-            setPasteSuccess(true);
-            setTimeout(() => setPasteSuccess(false), 2000);
-            return;
-          }
-        } catch (readErr) {
-          console.info('Clipboard read permission prompt or format fallback:', readErr);
-        }
-      }
-
-      // 2. Fallback to readText
       if (navigator.clipboard.readText) {
         const text = await navigator.clipboard.readText();
-        if (text && (text.startsWith('data:image/') || text.startsWith('http://') || text.startsWith('https://'))) {
+        if (text && isValidWebUrl(text)) {
+          setProductUrl(text.trim());
+          setMode('url');
+          setPasteSuccess(true);
+          setError(null);
+          setTimeout(() => setPasteSuccess(false), 2000);
+          return;
+        } else if (text && (text.startsWith('data:image/') || text.startsWith('http'))) {
           if (selectedImages.length < MAX_IMAGES) {
             setSelectedImages((prev) => [...prev, text]);
+            setMode('photo');
             setError(null);
             setPasteSuccess(true);
             setTimeout(() => setPasteSuccess(false), 2000);
           }
           return;
         } else if (text && text.trim()) {
-          // If text or numeric values copied, append to user notes
           setUserNotes((prev) => (prev ? `${prev}, ${text.trim()}` : text.trim()));
           setPasteSuccess(true);
           setTimeout(() => setPasteSuccess(false), 2000);
@@ -218,10 +239,28 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
         }
       }
 
-      setError('У буфері обміну немає скопійованого зображення. Скопіюйте фото чи скріншот бирки та спробуйте ще раз (або натисніть Ctrl+V).');
+      if (navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        const imageFiles: File[] = [];
+        for (const item of items) {
+          const imageType = item.types.find((t) => t.startsWith('image/'));
+          if (imageType) {
+            const blob = await item.getType(imageType);
+            imageFiles.push(new File([blob], `clipboard-${Date.now()}.png`, { type: imageType }));
+          }
+        }
+        if (imageFiles.length > 0) {
+          await processFiles(imageFiles);
+          setPasteSuccess(true);
+          setTimeout(() => setPasteSuccess(false), 2000);
+          return;
+        }
+      }
+
+      setError('У буфері обміну немає посилання на товар чи зображення. Скопіюйте URL або скріншот та натисніть Ctrl+V.');
     } catch (err: any) {
       console.warn('Clipboard read error:', err);
-      setError('Не вдалося прочитати буфер обміну. Дозвольте доступ до буфера у браузері або натисніть Ctrl+V.');
+      setError('Дозвольте доступ до буфера обміну або скористайтесь комбінацією клавіш Ctrl+V.');
     }
   };
 
@@ -229,7 +268,7 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
     const files = e.target.files;
     if (!files || files.length === 0) return;
     await processFiles(files);
-    e.target.value = ''; // Reset input to allow re-uploading the same file if needed
+    e.target.value = '';
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -264,101 +303,59 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
   };
 
   const handleScan = async () => {
-    if (selectedImages.length === 0) {
-      setError('Будь ласка, завантажте хоча б одне фото бирки чи виробу');
+    const hasUrl = mode === 'url' && productUrl.trim().length > 0;
+    const hasImages = selectedImages.length > 0;
+
+    if (!hasUrl && !hasImages) {
+      setError(
+        mode === 'url'
+          ? 'Будь ласка, вставте посилання на товар в інтернет-магазині (наприклад https://zolotiyvik.ua/...)'
+          : 'Будь ласка, завантажте хоча б одне фото бирки чи виробу'
+      );
       return;
     }
 
     setLoading(true);
     setError(null);
+    setScannedResult(null);
 
-    let mappedInputs: Partial<CalculationInputs> | null = null;
+    if (hasUrl) {
+      setLoadingStep('Завантаження сторінки магазину та витягування характеристик...');
+    } else {
+      setLoadingStep(`Аналіз ${selectedImages.length} фото біржі/виробу...`);
+    }
 
-    // 1. First attempt via Express server API (sends all images)
     try {
-      const response = await fetch('/api/analyze-jewelry', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          imagesBase64: selectedImages,
-          imageBase64: selectedImages[0], // fallback for backward compatibility
-          userNotes,
-        }),
+      const normalized = hasUrl ? normalizeUrl(productUrl) : undefined;
+      const resultData = await analyzeJewelryUnified({
+        url: normalized,
+        images: selectedImages,
+        userNotes,
+        apiKeyOverride: apiKeyInput,
       });
 
-      if (response.ok) {
-        const contentType = response.headers.get('content-type') || '';
-        if (contentType.includes('application/json')) {
-          const json = await response.json();
-          if (json.success && json.data) {
-            const data = json.data;
-            mappedInputs = {
-              title: data.title || 'Ювелірний виріб з фото',
-              itemType: data.itemType || 'ring',
-              metalType: (['gold', 'silver', 'platinum', 'palladium'].includes(data.metalType)
-                ? data.metalType
-                : 'gold') as any,
-              purity: typeof data.purity === 'number' ? data.purity : 585,
-              metalWeightGrams: typeof data.metalWeightGrams === 'number' ? data.metalWeightGrams : 4.0,
-              retailPrice: typeof data.price === 'number' ? data.price : 0,
-              brandName: data.brand || '',
-              currency: (['UAH', 'USD', 'EUR'].includes(data.currency) ? data.currency : 'UAH') as any,
-              notes: data.aiNotes || '',
-              photoUrl: selectedImages[0],
-            };
-
-            if (Array.isArray(data.gemstones) && data.gemstones.length > 0) {
-              mappedInputs.gemstones = data.gemstones.map((g: any, i: number) => ({
-                id: 'scanned-gem-' + i + '-' + Date.now(),
-                type: g.type?.toLowerCase().includes('діамант') ? 'diamond' : 'other',
-                nameUk: g.type || 'Вставка',
-                count: typeof g.count === 'number' ? g.count : 1,
-                caratsPerStone: typeof g.carats === 'number' ? g.carats : 0.05,
-                origin: g.origin || 'natural',
-                clarityQuality: g.clarity || '',
-                colorQuality: g.color || '',
-              }));
-            }
-          }
-        }
+      if (!resultData || Object.keys(resultData).length === 0) {
+        throw new Error('AI не зміг розпізнати параметри ювелірного виробу. Перевірте посилання або спробуйте інше фото.');
       }
-    } catch (serverErr) {
-      console.info('Server API unavailable, falling back to direct browser client scanning:', serverErr);
+
+      setScannedResult(resultData);
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      if (err?.message === 'NO_API_KEY_GITHUB_PAGES') {
+        setError('Для роботи AI сканера потрібен безкоштовний Google Gemini API Key. Введіть його у формі налаштувань нижче.');
+      } else {
+        setError(err?.message || 'Помилка аналізу. Перевірте доступність сайту чи правильність посилання.');
+      }
+      setLoading(false);
     }
+  };
 
-    // 2. If server API returned error or failed (e.g. GitHub Pages static host), call client Gemini API
-    if (!mappedInputs) {
-      try {
-        mappedInputs = await analyzeJewelryImageClientSide(
-          selectedImages,
-          userNotes,
-          apiKeyInput
-        );
-      } catch (clientErr: any) {
-        if (clientErr?.message === 'NO_API_KEY_GITHUB_PAGES') {
-          setShowKeyPrompt(true);
-          setError('Для AI розпізнавання введіть ваш безкоштовний API ключ Google у полі нижче.');
-          setLoading(false);
-          return;
-        } else {
-          console.error('Client scan error:', clientErr);
-          setError(clientErr?.message || 'Помилка розпізнавання фото');
-          setLoading(false);
-          return;
-        }
-      }
-    }
-
-    if (mappedInputs) {
-      if (!mappedInputs.photoUrl && selectedImages.length > 0) {
-        mappedInputs.photoUrl = selectedImages[0];
-      }
-      onApplyData(mappedInputs);
+  const handleApplyAndClose = () => {
+    if (scannedResult) {
+      onApplyData(scannedResult);
       onClose();
     }
-    setLoading(false);
   };
 
   if (!isOpen) return null;
@@ -367,116 +364,286 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
     <ModalDialog
       isOpen={isOpen}
       onClose={onClose}
-      title="AI Мульти-сканер Бирки / Чека / Прикраси"
-      subtitle="Завантажте декілька фото: лицьову та зворотну сторону бирки, виріб і пробу"
+      title="AI Сканер Ювелірних Прикрас"
+      subtitle="Витягує пробу, вагу, ціну, вставки та фото за посиланням на магазин або з фото бирки"
       icon={<Sparkles className="w-5 h-5 text-amber-400" />}
-      maxWidthClass="max-w-xl"
+      maxWidthClass="max-w-2xl"
       footer={
         <>
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 text-xs font-medium transition-colors"
+            className="px-4 py-2 rounded-xl text-slate-300 hover:bg-slate-800 text-xs font-medium transition-colors cursor-pointer"
           >
             Скасувати
           </button>
-          <button
-            type="button"
-            onClick={handleScan}
-            disabled={selectedImages.length === 0 || loading}
-            className="flex items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md transition-all disabled:opacity-50 active:scale-95 cursor-pointer"
-          >
-            {loading ? (
-              <>
-                <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
-                <span>Аналізую {selectedImages.length} {selectedImages.length === 1 ? 'фото' : 'фотографій'}...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-slate-950 fill-slate-950" />
-                <span>
-                  Запустити Розпізнавання {selectedImages.length > 0 ? `(${selectedImages.length})` : ''}
-                </span>
-              </>
-            )}
-          </button>
+
+          {scannedResult ? (
+            <button
+              type="button"
+              onClick={handleApplyAndClose}
+              className="flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-500/20 transition-all active:scale-95 cursor-pointer"
+            >
+              <Check className="w-4 h-4 text-slate-950" />
+              <span>Застосувати у калькулятор</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleScan}
+              disabled={loading || (mode === 'url' && !productUrl.trim() && selectedImages.length === 0)}
+              className="flex items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all disabled:opacity-50 active:scale-95 cursor-pointer"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Розпізнаю...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-slate-950 fill-slate-950" />
+                  <span>Запустити AI Сканер</span>
+                </>
+              )}
+            </button>
+          )}
         </>
       }
     >
-      <div
-        className="space-y-4"
-        onContextMenu={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-xs text-slate-300">
-          <Layers className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <p className="leading-relaxed">
-            Ви можете обрати <strong>одночасно декілька зображень</strong> (наприклад: лицьовий бік бирки з ціною, зворотний з характеристиками каміння, макро-фото виробу або чек). AI зіставить всі фото в єдину оцінку.
-          </p>
+      <div className="space-y-4" onContextMenu={(e) => e.stopPropagation()}>
+        
+        {/* Mode Selector Tabs */}
+        <div className="flex p-1 bg-slate-900 border border-slate-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => {
+              setMode('url');
+              setError(null);
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              mode === 'url'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Link2 className="w-4 h-4" />
+            <span>Посилання на магазин</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-slate-950/20 font-normal">Нове</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode('photo');
+              setError(null);
+            }}
+            className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              mode === 'photo'
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Camera className="w-4 h-4" />
+            <span>Фото біржі / виробу</span>
+            {selectedImages.length > 0 && (
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300 font-bold">
+                {selectedImages.length}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Selected Images Grid & Actions */}
-        {selectedImages.length > 0 ? (
+        {/* 1. URL SCANNER VIEW */}
+        {mode === 'url' && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
-                <ImageIcon className="w-4 h-4 text-amber-400" />
-                <span>Вибрані зображення ({selectedImages.length} з {MAX_IMAGES})</span>
-              </span>
-              <button
-                type="button"
-                onClick={handleClearAllImages}
-                className="text-xs text-rose-400 hover:text-rose-300 font-medium cursor-pointer flex items-center gap-1 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Очистити всі</span>
-              </button>
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold text-slate-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <Globe className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Посилання на сторінку товару</span>
+                </span>
+                <span className="text-[11px] text-slate-400 font-normal">
+                  (Золотий Вік, SOVA, Укрзолото, Zarina, Pandora, Rozetka тощо)
+                </span>
+              </label>
+
+              <div className="relative flex items-center">
+                <div className="absolute left-3 text-slate-500 pointer-events-none">
+                  <Link2 className="w-4 h-4" />
+                </div>
+                <input
+                  type="url"
+                  placeholder="https://zolotiyvik.ua/ua/kolco-iz-zolota..."
+                  value={productUrl}
+                  onChange={(e) => {
+                    setProductUrl(e.target.value);
+                    setScannedResult(null);
+                    setError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && productUrl.trim() && !loading) {
+                      e.preventDefault();
+                      handleScan();
+                    }
+                  }}
+                  onContextMenu={(e) => e.stopPropagation()}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl pl-9 pr-24 py-2.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400 shadow-inner font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  className="absolute right-2 px-2.5 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
+                  title="Вставити посилання з буфера (Ctrl+V)"
+                >
+                  <Clipboard className="w-3 h-3 text-amber-400" />
+                  <span>Вставити</span>
+                </button>
+              </div>
             </div>
 
-            {/* Grid of uploaded images */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {selectedImages.map((imgUrl, index) => (
-                <div
-                  key={index}
-                  className="group relative rounded-xl border border-slate-700 bg-slate-950/70 overflow-hidden shadow-md aspect-square flex items-center justify-center p-1.5 hover:border-amber-400/60 transition-all"
-                >
-                  <img
-                    src={imgUrl}
-                    alt={`Завантажене фото #${index + 1}`}
-                    className="w-full h-full object-cover rounded-lg"
-                  />
-                  {/* Badge */}
-                  <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-md text-[10px] font-bold text-amber-300 shadow">
-                    {index === 0 ? '★ Головне #1' : `#${index + 1}`}
-                  </div>
-                  {/* Delete button */}
+            {/* Quick Test Samples */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-medium text-slate-400 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-400" />
+                <span>Або оберіть приклад для миттєвого тестування:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {SAMPLE_STORE_URLS.map((sample, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setProductUrl(sample.url);
+                      setScannedResult(null);
+                      setError(null);
+                    }}
+                    className={`text-left p-2 rounded-xl border text-xs transition-all cursor-pointer flex flex-col justify-between ${
+                      productUrl === sample.url
+                        ? 'bg-amber-500/15 border-amber-500/50 text-amber-200'
+                        : 'bg-slate-900/60 hover:bg-slate-850 border-slate-800 hover:border-slate-700 text-slate-300'
+                    }`}
+                  >
+                    <span className="font-semibold text-[11px] text-white flex items-center gap-1">
+                      <Store className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span className="truncate">{sample.name}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-400 truncate mt-0.5">{sample.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 2. PHOTO MULTI-SCANNER VIEW */}
+        {mode === 'photo' && (
+          <div className="space-y-3">
+            {selectedImages.length > 0 ? (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-amber-400" />
+                    <span>Завантажені фото ({selectedImages.length} з {MAX_IMAGES})</span>
+                  </span>
                   <button
                     type="button"
-                    onClick={() => handleRemoveImage(index)}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-full bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 flex items-center justify-center transition-all cursor-pointer shadow active:scale-90"
-                    title="Видалити це фото"
+                    onClick={handleClearAllImages}
+                    className="text-xs text-rose-400 hover:text-rose-300 font-medium cursor-pointer flex items-center gap-1 transition-colors"
                   >
-                    <X className="w-3.5 h-3.5" />
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Очистити всі</span>
                   </button>
                 </div>
-              ))}
 
-              {/* Add more button tile (if less than MAX_IMAGES) */}
-              {selectedImages.length < MAX_IMAGES && (
-                <div
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                  className={`border-2 border-dashed rounded-xl aspect-square flex flex-col items-center justify-center p-2 text-center transition-all ${
-                    isDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-slate-700 hover:border-slate-600 bg-slate-900/30'
-                  }`}
-                >
-                  <div className="text-[11px] font-semibold text-slate-300 mb-2">
-                    + Додати ще одне фото
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                  {selectedImages.map((imgUrl, index) => (
+                    <div
+                      key={index}
+                      className="group relative rounded-xl border border-slate-700 bg-slate-950/70 overflow-hidden shadow-md aspect-square flex items-center justify-center p-1.5 hover:border-amber-400/60 transition-all"
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Фото #${index + 1}`}
+                        className="w-full h-full object-cover rounded-lg"
+                      />
+                      <div className="absolute top-2 left-2 bg-slate-900/90 border border-slate-700/80 px-2 py-0.5 rounded-md text-[10px] font-bold text-amber-300 shadow">
+                        {index === 0 ? '★ Головне #1' : `#${index + 1}`}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(index)}
+                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-rose-950/90 hover:bg-rose-900 border border-rose-500/50 text-rose-300 flex items-center justify-center transition-all cursor-pointer shadow active:scale-90"
+                        title="Видалити"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  {selectedImages.length < MAX_IMAGES && (
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      className={`border-2 border-dashed rounded-xl aspect-square flex flex-col items-center justify-center p-2 text-center transition-all ${
+                        isDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-slate-700 hover:border-slate-600 bg-slate-900/30'
+                      }`}
+                    >
+                      <div className="text-[11px] font-semibold text-slate-300 mb-2">
+                        + Додати фото
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-1.5">
+                        <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-medium transition-colors flex items-center gap-1">
+                          <Upload className="w-3 h-3 text-sky-400" />
+                          <span>Файл</span>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                        <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-medium transition-colors flex items-center gap-1">
+                          <Camera className="w-3 h-3 text-emerald-400" />
+                          <span>Камера</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={handleFileChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`relative border-2 border-dashed rounded-xl p-5 sm:p-6 text-center transition-colors bg-slate-950/50 ${
+                  isDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-slate-700 hover:border-amber-400/70'
+                }`}
+              >
+                <div className="flex flex-col items-center justify-center space-y-2.5 py-2">
+                  <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-amber-400 shadow-inner">
+                    <Camera className="w-6 h-6" />
                   </div>
-                  <div className="flex flex-wrap items-center justify-center gap-1.5">
-                    <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-medium transition-colors flex items-center gap-1">
-                      <Upload className="w-3 h-3 text-sky-400" />
-                      <span>Галерея</span>
+                  <div className="text-xs font-semibold text-slate-200">
+                    Завантажте фото бирки з обох боків, чека або самого виробу
+                  </div>
+                  <div className="text-[11px] text-slate-500 max-w-sm">
+                    AI автоматично зіставить дані з кількох фотографій (пробу, вагу, каміння та вартість)
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+                    <label className="cursor-pointer flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-semibold text-xs transition-colors shadow-sm active:scale-95">
+                      <Upload className="w-4 h-4 text-sky-400" />
+                      <span>Вибрати з галереї</span>
                       <input
                         type="file"
                         multiple
@@ -485,9 +652,10 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
                         className="hidden"
                       />
                     </label>
-                    <label className="cursor-pointer px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-[11px] font-medium transition-colors flex items-center gap-1">
-                      <Camera className="w-3 h-3 text-emerald-400" />
-                      <span>Камера</span>
+
+                    <label className="cursor-pointer flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium text-xs transition-colors active:scale-95">
+                      <Camera className="w-4 h-4 text-emerald-400" />
+                      <span>Зняти на камеру</span>
                       <input
                         type="file"
                         accept="image/*"
@@ -496,78 +664,144 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
                         className="hidden"
                       />
                     </label>
+
                     <button
                       type="button"
                       onClick={handlePasteFromClipboard}
-                      className="cursor-pointer px-2 py-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-medium transition-colors flex items-center gap-1"
-                      title="Вставити з буферу (Ctrl+V)"
+                      className="cursor-pointer flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-xs transition-all active:scale-95 shadow-sm"
+                      title="Вставити скопійоване фото (Ctrl+V)"
                     >
-                      <Clipboard className="w-3 h-3 text-amber-400" />
-                      <span>Буфер</span>
+                      <Clipboard className="w-4 h-4 text-amber-400" />
+                      <span>Вставити з буферу</span>
                     </button>
                   </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        ) : (
-          /* Empty State Dropzone */
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`relative border-2 border-dashed rounded-xl p-5 sm:p-6 text-center transition-colors bg-slate-950/50 ${
-              isDragOver ? 'border-amber-400 bg-amber-500/10' : 'border-slate-700 hover:border-amber-400/70'
-            }`}
-          >
-            <div className="flex flex-col items-center justify-center space-y-2.5 py-2">
-              <div className="w-12 h-12 rounded-full bg-slate-800 flex items-center justify-center text-amber-400 shadow-inner">
-                <Camera className="w-6 h-6" />
-              </div>
-              <div className="text-xs font-semibold text-slate-200">
-                Виберіть одне або декілька фото бирки, виробу чи чека
-              </div>
-              <div className="text-[11px] text-slate-500 max-w-sm">
-                Можна вибрати декілька фото одночасно з галереї, зробити кілька знімків поспіль або натиснути <kbd className="px-1 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-300 font-mono text-[10px]">Ctrl+V</kbd>
-              </div>
+        )}
 
-              <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                {/* Gallery Multiple File Select */}
-                <label className="cursor-pointer flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-100 font-semibold text-xs transition-colors shadow-sm active:scale-95">
-                  <Upload className="w-4 h-4 text-sky-400" />
-                  <span>Вибрати фото (можна декілька)</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
+        {/* Loading Progress State */}
+        {loading && (
+          <div className="p-4 bg-slate-900 border border-amber-500/30 rounded-xl space-y-2 text-center animate-pulse">
+            <div className="flex items-center justify-center gap-2 text-amber-400 font-semibold text-xs">
+              <RefreshCw className="w-4 h-4 animate-spin" />
+              <span>{loadingStep || 'AI обробляє інформацію...'}</span>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Витягуємо пробу металу, вагу, характеристики вставок каміння, ціну та фото товару.
+            </p>
+          </div>
+        )}
+
+        {/* Scanned Result Preview Card */}
+        {scannedResult && !loading && (
+          <div className="p-4 bg-gradient-to-br from-slate-900 via-slate-900/90 to-amber-950/20 border border-amber-500/40 rounded-2xl space-y-3 shadow-xl animate-in fade-in">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-bold text-emerald-300">
+                  Параметри успішно розпізнано!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleScan}
+                className="text-[11px] text-amber-400 hover:text-amber-300 underline font-medium cursor-pointer"
+              >
+                Сканувати заново
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3 items-start">
+              {scannedResult.photoUrl && (
+                <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl border border-slate-700 bg-slate-950 overflow-hidden shrink-0 shadow-md">
+                  <img
+                    src={scannedResult.photoUrl}
+                    alt="Розпізнаний виріб"
+                    className="w-full h-full object-cover"
                   />
-                </label>
+                </div>
+              )}
 
-                {/* Camera Capture */}
-                <label className="cursor-pointer flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-medium text-xs transition-colors active:scale-95">
-                  <Camera className="w-4 h-4 text-emerald-400" />
-                  <span>Зняти на камеру</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    capture="environment"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="font-bold text-sm text-white truncate">
+                  {scannedResult.title || 'Ювелірний виріб'}
+                </div>
 
-                {/* Paste from Clipboard Button */}
-                <button
-                  type="button"
-                  onClick={handlePasteFromClipboard}
-                  className="cursor-pointer flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 font-semibold text-xs transition-all active:scale-95 shadow-sm"
-                  title="Вставити скопійований скріншот або фото з буфера обміну (Ctrl+V)"
-                >
-                  <Clipboard className="w-4 h-4 text-amber-400" />
-                  <span>Вставити з буферу</span>
-                </button>
+                <div className="flex flex-wrap gap-1.5 text-[11px]">
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold flex items-center gap-1">
+                    <Scale className="w-3 h-3 text-amber-400" />
+                    <span>
+                      {scannedResult.metalType === 'gold' ? 'Золото' : scannedResult.metalType === 'silver' ? 'Срібло' : scannedResult.metalType} {scannedResult.purity} проби
+                    </span>
+                  </span>
+
+                  <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200 font-medium">
+                    Вага:{' '}
+                    {scannedResult.metalWeightGrams && scannedResult.metalWeightGrams > 0 ? (
+                      <strong className="text-white">{scannedResult.metalWeightGrams} г</strong>
+                    ) : (
+                      <span className="text-amber-400 font-normal">не вказана</span>
+                    )}
+                  </span>
+
+                  {scannedResult.retailPrice ? (
+                    <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-emerald-400" />
+                      <span>
+                        {scannedResult.retailPrice.toLocaleString('uk-UA')} {scannedResult.currency || 'UAH'}
+                      </span>
+                    </span>
+                  ) : null}
+
+                  {scannedResult.brandName && (
+                    <span className="px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-300 flex items-center gap-1">
+                      <Store className="w-3 h-3 text-slate-400" />
+                      <span>{scannedResult.brandName}</span>
+                    </span>
+                  )}
+                </div>
+
+                {Array.isArray(scannedResult.gemstones) && scannedResult.gemstones.length > 0 && (
+                  <div className="p-2.5 bg-slate-950/80 rounded-xl border border-sky-900/50 text-[11px] space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sky-300 font-semibold flex items-center gap-1">
+                        <Gem className="w-3.5 h-3.5 text-sky-400" />
+                        <span>Вставки каміння ({scannedResult.gemstones.length}):</span>
+                      </span>
+                      <span className="text-sky-400 font-mono font-bold text-[10px]">
+                        Σ ~ ${Math.round(scannedResult.gemstones.reduce((s, g) => s + calculateGemstoneUsdValue(g), 0))} USD
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {scannedResult.gemstones.map((gem, i) => {
+                        const price = calculateGemstoneUsdValue(gem);
+                        return (
+                          <span
+                            key={i}
+                            className="px-2 py-0.5 rounded bg-sky-950/60 border border-sky-500/40 text-sky-200 font-medium flex items-center gap-1 text-[11px]"
+                          >
+                            <span>
+                              {gem.count}x {gem.nameUk} ({gem.caratsPerStone} ct{gem.colorQuality && gem.clarityQuality ? ` ${gem.colorQuality}/${gem.clarityQuality}` : ''})
+                            </span>
+                            <span className="text-amber-300 font-mono font-bold text-[10px]">
+                              ~${Math.round(price)}
+                            </span>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {scannedResult.notes && (
+                  <p className="text-[11px] text-slate-400 italic bg-slate-950/40 p-2 rounded-lg border border-slate-800/80">
+                    «{scannedResult.notes}»
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -577,26 +811,32 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
         {pasteSuccess && (
           <div className="p-2.5 bg-emerald-950/70 border border-emerald-500/40 rounded-xl text-xs text-emerald-300 flex items-center space-x-2 animate-in fade-in duration-150">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Зображення успішно додано з буферу обміну!</span>
+            <span>Посилання або дані успішно додано з буферу обміну!</span>
           </div>
         )}
 
-        {/* Optional notes input with full right-click context menu protection */}
+        {/* Additional user notes */}
         <div>
-          <label className="block text-xs font-semibold text-slate-300 mb-1">
-            Уточнення для AI (опціонально: коментар, вага, тип каміння чи ціна)
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-semibold text-slate-300">
+              Додаткові примітки для AI (опціонально)
+            </label>
+            <span className="text-[10px] text-amber-400 font-medium">Пріоритет над сканом</span>
+          </div>
           <input
             type="text"
-            placeholder="напр. Це каблучка 585 проби з золота, вага 4.2г, ціна 15000 грн"
+            placeholder="напр. Вага 4.8г, ціна 16500 грн, розмір 17.5"
             value={userNotes}
             onChange={(e) => setUserNotes(e.target.value)}
             onContextMenu={(e) => e.stopPropagation()}
             className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
           />
+          <p className="text-[10px] text-slate-400 mt-1">
+            Якщо на фото бирки не видно вагу, ціну або розмір — вкажіть їх тут, і AI обов'язково підставить їх у розрахунок.
+          </p>
         </div>
 
-        {/* Clean API Key Selector / Input */}
+        {/* Custom API Key input */}
         <div
           className="p-3 bg-slate-950/80 border border-slate-800/80 rounded-xl space-y-2 text-xs"
           onContextMenu={(e) => e.stopPropagation()}
@@ -604,7 +844,7 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
           <div className="flex items-center justify-between">
             <span className="font-semibold text-slate-200 flex items-center gap-1.5">
               <Key className="w-3.5 h-3.5 text-amber-400" />
-              <span>Налаштування AI</span>
+              <span>Налаштування Gemini AI</span>
             </span>
             <a
               href="https://aistudio.google.com/app/apikey"
@@ -612,14 +852,14 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
               rel="noreferrer"
               className="text-[11px] text-amber-400 hover:text-amber-300 font-medium underline"
             >
-              Отримати API ключ
+              Отримати безкоштовний ключ
             </a>
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             <input
               type="password"
-              placeholder="Власний Google Gemini API Key (за бажанням)"
+              placeholder="Власний Google Gemini API Key (за потреби)"
               value={apiKeyInput}
               onChange={(e) => {
                 setApiKeyInput(e.target.value);
@@ -631,7 +871,7 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
             <p className="text-[10px] text-slate-400">
               {apiKeyInput.trim()
                 ? 'Використовується персональний API ключ'
-                : 'Використовується вбудований сервіс AI розпізнавання'}
+                : 'Використовується автоматичний серверний AI сервіс'}
             </p>
           </div>
         </div>

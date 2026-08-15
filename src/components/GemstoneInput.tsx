@@ -1,25 +1,51 @@
 import React from 'react';
-import { Plus, Trash2, Gem, Info, RefreshCw, DollarSign } from 'lucide-react';
-import { GemOrigin, GemstoneItem, GemType } from '../types';
+import { Plus, Trash2, Gem, Info, RefreshCw, DollarSign, Sparkles } from 'lucide-react';
+import { Currency, GemOrigin, GemstoneItem, GemType, MetalRates } from '../types';
 import { GEM_OPTIONS_META, calculateGemstoneUsdValue } from '../data/gemstoneValuation';
+import { DEFAULT_METAL_RATES, convertCurrency, formatMoney } from '../data/metalRates';
 import { InfoHelper } from './InfoHelper';
 
 interface GemstoneInputProps {
   gemstones: GemstoneItem[];
   onChange: (gems: GemstoneItem[]) => void;
+  currency?: Currency;
+  rates?: MetalRates;
 }
 
-export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChange }) => {
+export const GemstoneInput: React.FC<GemstoneInputProps> = ({
+  gemstones,
+  onChange,
+  currency = 'UAH',
+  rates = DEFAULT_METAL_RATES,
+}) => {
+  const safeCurrency: 'UAH' | 'USD' | 'EUR' = (currency === 'USD' || currency === 'EUR' || currency === 'UAH') ? currency : 'UAH';
+
   const handleAddGem = () => {
     const newGem: GemstoneItem = {
       id: 'gem-' + Date.now(),
       type: 'diamond',
-      nameUk: 'Камінь вставка',
+      nameUk: 'Діамант',
       count: 1,
-      caratsPerStone: 0.1,
+      caratsPerStone: 0.05,
       origin: 'natural',
-      colorQuality: 'G / 4',
-      clarityQuality: 'VS2 / 4',
+      colorQuality: '3',
+      clarityQuality: '4',
+    };
+    onChange([...gemstones, newGem]);
+  };
+
+  const handleAddQuickPreset = (preset: {
+    type: GemType;
+    nameUk: string;
+    count: number;
+    caratsPerStone: number;
+    origin: GemOrigin;
+    colorQuality?: string;
+    clarityQuality?: string;
+  }) => {
+    const newGem: GemstoneItem = {
+      id: 'gem-' + Date.now() + '-' + Math.random().toString(36).slice(2, 5),
+      ...preset,
     };
     onChange([...gemstones, newGem]);
   };
@@ -49,32 +75,144 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
     );
   };
 
+  // Calculate total gemstone sum
+  const totalGemsUsd = gemstones.reduce((sum, gem) => sum + calculateGemstoneUsdValue(gem), 0);
+  const totalGemsConverted = convertCurrency(totalGemsUsd, safeCurrency, rates);
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
+      {/* Header with Live Total Valuation */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <label className="text-sm font-semibold text-slate-200 flex items-center space-x-1.5">
           <Gem className="w-4 h-4 text-cyan-400" />
           <span>Каміння та вставки ({gemstones.length})</span>
           <InfoHelper helpKey="gemstonesSection" />
         </label>
-        <button
-          type="button"
-          onClick={handleAddGem}
-          className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 text-xs font-medium transition-colors"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>Додати камінь</span>
-        </button>
+
+        <div className="flex items-center space-x-2">
+          {gemstones.length > 0 && (
+            <span className="text-xs font-mono font-bold text-cyan-300 bg-cyan-950/80 border border-cyan-500/30 px-2 py-0.5 rounded-lg shadow-sm">
+              Σ ~ ${Math.round(totalGemsUsd)} USD
+              {safeCurrency !== 'USD' && ` (≈ ${formatMoney(totalGemsConverted, safeCurrency)})`}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={handleAddGem}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/20 text-xs font-medium transition-colors active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Додати камінь</span>
+          </button>
+        </div>
       </div>
 
+      {/* Quick Add Presets for popular stones */}
+      {gemstones.length === 0 && (
+        <div className="p-3 bg-slate-900/60 rounded-xl border border-slate-800 space-y-2">
+          <div className="flex items-center justify-between text-[11px] text-slate-400">
+            <span className="flex items-center gap-1 font-medium text-slate-300">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              Швидке додавання популярних вставок:
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() =>
+                handleAddQuickPreset({
+                  type: 'diamond',
+                  nameUk: 'Діамант',
+                  count: 1,
+                  caratsPerStone: 0.05,
+                  origin: 'natural',
+                  colorQuality: '3',
+                  clarityQuality: '4',
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors"
+            >
+              💎 1 Діамант 0.05ct (3/4)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleAddQuickPreset({
+                  type: 'diamond',
+                  nameUk: 'Діамант',
+                  count: 1,
+                  caratsPerStone: 0.15,
+                  origin: 'natural',
+                  colorQuality: '3',
+                  clarityQuality: '4',
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors"
+            >
+              💎 1 Діамант 0.15ct
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleAddQuickPreset({
+                  type: 'cubic_zirconia',
+                  nameUk: 'Фіаніт',
+                  count: 5,
+                  caratsPerStone: 0.02,
+                  origin: 'synthetic',
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors"
+            >
+              ✨ Фіаніти (5 шт)
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleAddQuickPreset({
+                  type: 'sapphire',
+                  nameUk: 'Сапфір',
+                  count: 1,
+                  caratsPerStone: 0.4,
+                  origin: 'natural',
+                  colorQuality: '2',
+                  clarityQuality: '2',
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors"
+            >
+              💙 Сапфір 0.40ct
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                handleAddQuickPreset({
+                  type: 'emerald',
+                  nameUk: 'Смарагд',
+                  count: 1,
+                  caratsPerStone: 0.3,
+                  origin: 'natural',
+                  colorQuality: '3',
+                  clarityQuality: '3',
+                })
+              }
+              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-colors"
+            >
+              💚 Смарагд 0.30ct
+            </button>
+          </div>
+        </div>
+      )}
+
       {gemstones.length === 0 ? (
-        <div className="p-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-400">
+        <div className="p-3.5 rounded-xl border border-dashed border-slate-800 bg-slate-900/40 text-center text-xs text-slate-400">
           У виробі немає вставок каміння (чистий метал без діамантів чи фіанітів)
         </div>
       ) : (
         <div className="space-y-3">
           {gemstones.map((gem, index) => {
             const estimatedUsd = calculateGemstoneUsdValue(gem);
+            const estimatedConverted = convertCurrency(estimatedUsd, safeCurrency, rates);
             const isCustomPrice = gem.customTotalPriceUsd !== undefined && gem.customTotalPriceUsd >= 0;
             const displayName = gem.type === 'other' && gem.customName ? gem.customName : gem.nameUk;
 
@@ -94,8 +232,13 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                   </span>
                   
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-800/50 px-2.5 py-0.5 rounded text-[11px] flex items-center gap-1">
+                    <span className="font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-800/50 px-2.5 py-0.5 rounded text-[11px] flex items-center gap-1 font-mono">
                       <span>~ ${estimatedUsd.toLocaleString('en-US')} USD</span>
+                      {safeCurrency !== 'USD' && (
+                        <span className="text-slate-400 font-sans text-[10px]">
+                          (≈ {formatMoney(estimatedConverted, safeCurrency)})
+                        </span>
+                      )}
                     </span>
 
                     {isCustomPrice && (
@@ -224,7 +367,7 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                     </div>
                     <input
                       type="text"
-                      placeholder="напр. D, G, 4"
+                      placeholder="напр. D, G, 3, 4"
                       value={gem.colorQuality || ''}
                       onChange={(e) => handleUpdateGem(gem.id, { colorQuality: e.target.value })}
                       className="w-full bg-slate-800/80 border border-slate-700/80 rounded px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-400"
@@ -238,7 +381,7 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                     </div>
                     <input
                       type="text"
-                      placeholder="напр. VVS2, VS1, 3/4"
+                      placeholder="напр. VVS2, VS1, 3/4, 4"
                       value={gem.clarityQuality || ''}
                       onChange={(e) => handleUpdateGem(gem.id, { clarityQuality: e.target.value })}
                       className="w-full bg-slate-800/80 border border-slate-700/80 rounded px-2 py-1 text-[11px] text-slate-200 focus:outline-none focus:border-cyan-400"
@@ -273,7 +416,7 @@ export const GemstoneInput: React.FC<GemstoneInputProps> = ({ gemstones, onChang
                 <div className="flex items-center justify-between text-[10px] text-slate-400 pt-1">
                   <div className="flex items-center space-x-1">
                     <Info className="w-3 h-3 text-cyan-400 shrink-0" />
-                    <span>Загальна вага каміння: {(gem.caratsPerStone * gem.count).toFixed(3)} ct</span>
+                    <span>Загальна вага вставки: {(gem.caratsPerStone * gem.count).toFixed(3)} ct</span>
                   </div>
                   {gem.type === 'other' && (
                     <div className="flex items-center space-x-1">

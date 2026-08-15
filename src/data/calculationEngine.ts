@@ -152,6 +152,8 @@ export function calculateJewelryBreakdown(
     pawnshopEstimateUsd,
 
     displayCurrency: curr,
+    pureMetalPriceTotal: convertCurrency(pureMetalPriceUsd, curr, rates),
+    gemstonesTotal: convertCurrency(gemstonesTotalUsd, curr, rates),
     rawMaterialsTotal: convertCurrency(rawMaterialsTotalUsd, curr, rates),
     productionCostTotal: convertCurrency(productionCostUsd, curr, rates),
     laborAndLossesTotal: convertCurrency(laborAndProcessingTotalUsd, curr, rates),
