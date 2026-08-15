@@ -341,16 +341,13 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                 key={meta.id}
                 type="button"
                 onClick={() => handleMetalTypeChange(meta.id)}
-                className={`p-3 rounded-xl border transition-all text-left flex flex-col justify-between ${
+                className={`py-3 px-3.5 rounded-xl border transition-all text-center flex items-center justify-center space-x-2 ${
                   isSelected
-                    ? `${meta.colorClass} ring-2 ring-amber-400/50 shadow-md`
-                    : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300'
+                    ? `${meta.colorClass} ring-2 ring-amber-400/50 shadow-md font-bold`
+                    : 'bg-slate-800/60 border-slate-700/80 hover:bg-slate-800 text-slate-300 font-medium hover:text-white'
                 }`}
               >
-                <div className="font-bold text-sm">{meta.nameUk}</div>
-                <div className="text-[11px] opacity-80 mt-1">
-                  {meta.defaultPurity} проба
-                </div>
+                <span className="text-sm">{meta.nameUk}</span>
               </button>
             );
           })}

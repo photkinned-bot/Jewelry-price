@@ -20,9 +20,19 @@ export const AiAdviceCard: React.FC<AiAdviceCardProps> = ({ inputs, result }) =>
 
     const calculationDetails = {
       title: inputs.title || 'Ювелірний виріб',
+      itemType: inputs.itemType,
+      brandName: inputs.brandName || '',
+      storeName: inputs.storeName || '',
+      productUrl: inputs.productUrl || '',
       metalType: inputs.metalType,
       metalPurity: inputs.purity,
       metalWeight: inputs.metalWeightGrams,
+      laborComplexity: inputs.laborComplexity,
+      coatingType: inputs.coatingType || 'none',
+      surfaceFinish: inputs.surfaceFinish || 'polished',
+      engravingType: inputs.engravingType || 'none',
+      engravingText: inputs.engravingText || '',
+      gemstones: inputs.gemstones || [],
       materialsCost: result.rawMaterialsTotal,
       laborCost: result.laborAndLossesTotal,
       costBasis: result.productionCostTotal,
@@ -30,8 +40,10 @@ export const AiAdviceCard: React.FC<AiAdviceCardProps> = ({ inputs, result }) =>
       markupAmount: result.markupAmount,
       markupPercent: result.markupPercent,
       markupRatio: result.markupRatio,
+      pawnshopEstimate: result.pawnshopEstimate,
       currency: inputs.currency,
-      gemstones: inputs.gemstones,
+      userComment: inputs.userComment || '',
+      notes: inputs.notes || '',
     };
 
     let fetchedAdvice: AiAdviceResult | null = null;
@@ -210,14 +222,24 @@ export const AiAdviceCard: React.FC<AiAdviceCardProps> = ({ inputs, result }) =>
             </div>
           )}
 
-          <div className="flex justify-end pt-1">
+          {/* Footer with analyzed item context & refresh button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-xs text-slate-400">
+            <div className="flex items-center space-x-1.5 truncate">
+              <span className="text-slate-400">Виріб:</span>
+              <span className="font-semibold text-amber-300/90 truncate">
+                {inputs.brandName ? `${inputs.brandName} • ` : ''}{inputs.title || 'Ювелірний виріб'}{inputs.storeName ? ` (${inputs.storeName})` : ''}
+              </span>
+            </div>
+
             <button
+              type="button"
               onClick={fetchAdvice}
               disabled={loading}
-              className="text-xs text-slate-400 hover:text-amber-400 flex items-center space-x-1 transition-colors"
+              className="inline-flex items-center justify-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-300 hover:text-amber-300 text-xs font-semibold transition-all active:scale-95 disabled:opacity-50 shrink-0 self-end sm:self-auto cursor-pointer"
+              title="Перечитати поточні введені параметри (бренд, магазин, ціну, пробу) та оновити аналіз"
             >
-              <RefreshCw className="w-3 h-3" />
-              <span>Оновити аналіз AI</span>
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-amber-400' : 'text-amber-400'}`} />
+              <span>{loading ? 'Перераховую AI...' : 'Оновити аналіз AI'}</span>
             </button>
           </div>
 

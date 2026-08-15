@@ -169,7 +169,7 @@ export const METAL_OPTIONS: MetalOption[] = [
     nameUk: 'Золото',
     purities: [375, 585, 750, 900, 916, 999],
     defaultPurity: 585,
-    colorClass: 'text-amber-500 border-amber-400 bg-amber-50/50',
+    colorClass: 'text-amber-300 border-amber-500/80 bg-amber-500/15',
     bgGradient: 'from-amber-500 to-yellow-600',
   },
   {
@@ -177,7 +177,7 @@ export const METAL_OPTIONS: MetalOption[] = [
     nameUk: 'Срібло',
     purities: [800, 875, 925, 960, 999],
     defaultPurity: 925,
-    colorClass: 'text-slate-400 border-slate-300 bg-slate-50/50',
+    colorClass: 'text-slate-200 border-slate-400/80 bg-slate-400/15',
     bgGradient: 'from-slate-400 to-slate-600',
   },
   {
@@ -185,7 +185,7 @@ export const METAL_OPTIONS: MetalOption[] = [
     nameUk: 'Платина',
     purities: [850, 900, 950, 999],
     defaultPurity: 950,
-    colorClass: 'text-cyan-600 border-cyan-400 bg-cyan-50/50',
+    colorClass: 'text-cyan-300 border-cyan-500/80 bg-cyan-500/15',
     bgGradient: 'from-cyan-500 to-blue-600',
   },
   {
@@ -193,7 +193,7 @@ export const METAL_OPTIONS: MetalOption[] = [
     nameUk: 'Паладій',
     purities: [500, 850, 950, 999],
     defaultPurity: 950,
-    colorClass: 'text-zinc-500 border-zinc-400 bg-zinc-50/50',
+    colorClass: 'text-zinc-200 border-zinc-400/80 bg-zinc-500/15',
     bgGradient: 'from-zinc-500 to-stone-700',
   },
 ];
