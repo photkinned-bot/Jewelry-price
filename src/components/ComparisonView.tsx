@@ -1,8 +1,24 @@
-import React from 'react';
-import { BarChart2, Award, Trash2, Tag, ExternalLink, Share2, Star, Heart, ThumbsUp, ThumbsDown, MessageSquare } from 'lucide-react';
+import React, { useState } from 'react';
+import {
+  BarChart2,
+  Award,
+  Trash2,
+  Tag,
+  ExternalLink,
+  Share2,
+  Star,
+  Heart,
+  ThumbsUp,
+  ThumbsDown,
+  MessageSquare,
+  Eye,
+  Camera,
+  Image as ImageIcon,
+} from 'lucide-react';
 import { SavedCalculation, Currency } from '../types';
 import { formatMoney } from '../data/metalRates';
 import { ModalDialog } from './ModalDialog';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface ComparisonViewProps {
   isOpen: boolean;
@@ -23,7 +39,26 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
   onSelectCalculatedItem,
   onShareItem,
 }) => {
+  const [previewImage, setPreviewImage] = useState<{ url: string; title?: string } | null>(null);
+
   if (!isOpen) return null;
+
+  const getItemIcon = (type?: string) => {
+    switch (type) {
+      case 'ring':
+        return '💍';
+      case 'necklace':
+        return '📿';
+      case 'earrings':
+        return '✨';
+      case 'bracelet':
+        return '⌚';
+      case 'pendant':
+        return '🔮';
+      default:
+        return '💎';
+    }
+  };
 
   // Find item with lowest markup ratio (best value for money)
   const bestValueItem = savedItems.length > 0
@@ -108,6 +143,43 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/40">
                   
+                  {/* Photo Row */}
+                  <tr>
+                    <td className="py-2.5 px-3 font-semibold text-slate-300">Фото виробу</td>
+                    {savedItems.map((item) => (
+                      <td key={item.id} className="py-2.5 px-3">
+                        {item.inputs.photoUrl ? (
+                          <div
+                            onClick={() =>
+                              setPreviewImage({
+                                url: item.inputs.photoUrl!,
+                                title: item.inputs.title,
+                              })
+                            }
+                            className="relative group cursor-pointer w-14 h-14 rounded-lg overflow-hidden border border-amber-500/40 bg-slate-950 shadow-sm"
+                            title="Натисніть для збільшення фото"
+                          >
+                            <img
+                              src={item.inputs.photoUrl}
+                              alt={item.inputs.title}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                            />
+                            <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                              <Eye className="w-3.5 h-3.5 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className="w-14 h-14 rounded-lg bg-slate-950/80 border border-slate-700/80 flex items-center justify-center text-xl shadow-inner select-none"
+                            title={item.inputs.itemType}
+                          >
+                            <span>{getItemIcon(item.inputs.itemType)}</span>
+                          </div>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+
                   {/* Retail Price */}
                   <tr>
                     <td className="py-2.5 px-3 font-semibold text-slate-300">Ціна в магазині</td>
@@ -310,6 +382,14 @@ export const ComparisonView: React.FC<ComparisonViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
+        imageUrl={previewImage?.url}
+        title={previewImage?.title}
+      />
     </ModalDialog>
   );
 };

@@ -352,6 +352,9 @@ export const AiScannerModal: React.FC<AiScannerModalProps> = ({
     }
 
     if (mappedInputs) {
+      if (!mappedInputs.photoUrl && selectedImages.length > 0) {
+        mappedInputs.photoUrl = selectedImages[0];
+      }
       onApplyData(mappedInputs);
       onClose();
     }

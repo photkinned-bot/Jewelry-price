@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Sparkles,
   Scale,
@@ -17,6 +17,15 @@ import {
   ExternalLink,
   Check,
   RotateCcw,
+  Camera,
+  Image as ImageIcon,
+  Upload,
+  Trash2,
+  Loader2,
+  Eye,
+  Clipboard,
+  AlertCircle,
+  Download,
 } from 'lucide-react';
 import {
   CalculationInputs,
@@ -37,6 +46,13 @@ import {
 } from '../data/metalRates';
 import { GemstoneInput } from './GemstoneInput';
 import { InfoHelper } from './InfoHelper';
+import { ImageLightboxModal } from './ImageLightboxModal';
+import {
+  fetchProductImageFromUrl,
+  compressImageFile,
+  readImageFromClipboard,
+  isValidWebUrl,
+} from '../lib/productImageService';
 import { EMPTY_CALCULATION_INPUTS, SAMPLE_JEWELRY_ITEMS } from '../data/sampleItems';
 
 interface JewelryFormProps {
@@ -61,6 +77,15 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
   const [coatingCurrency, setCoatingCurrency] = useState<'UAH' | 'USD'>('UAH');
   const [finishCurrency, setFinishCurrency] = useState<'UAH' | 'USD'>('UAH');
   const [engravingCurrency, setEngravingCurrency] = useState<'UAH' | 'USD'>('UAH');
+
+  // Photo management state
+  const [isFetchingImage, setIsFetchingImage] = useState(false);
+  const [imageFetchError, setImageFetchError] = useState<string | null>(null);
+  const [imageFetchSuccess, setImageFetchSuccess] = useState<string | null>(null);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedMetalMeta = METAL_OPTIONS.find((m) => m.id === inputs.metalType) || METAL_OPTIONS[0];
   const uahRate = rates?.currencies?.UAH || 41.5;
@@ -94,6 +119,102 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
       onSelectTemplate(null);
     }
     onChange({ ...inputs, ...fields });
+  };
+
+  // Photo handlers
+  const handleProcessImageFile = async (file: File) => {
+    try {
+      setIsFetchingImage(true);
+      setImageFetchError(null);
+      const compressedDataUrl = await compressImageFile(file, 700, 0.82);
+      handleFieldChange({ photoUrl: compressedDataUrl });
+      setImageFetchSuccess('Фото успішно додано!');
+      setTimeout(() => setImageFetchSuccess(null), 3000);
+    } catch (err: any) {
+      console.error('Error processing image:', err);
+      setImageFetchError('Не вдалося обробити фото. Спробуйте інший файл.');
+    } finally {
+      setIsFetchingImage(false);
+    }
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleProcessImageFile(file);
+    }
+    // reset input value so user can re-capture if desired
+    e.target.value = '';
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleProcessImageFile(file);
+    }
+    e.target.value = '';
+  };
+
+  const handleFetchImageFromUrl = async (customUrl?: string) => {
+    const targetUrl = customUrl || inputs.productUrl;
+    if (!targetUrl || !targetUrl.trim()) {
+      setImageFetchError('Будь ласка, вкажіть посилання на сторінку товару');
+      return;
+    }
+
+    try {
+      setIsFetchingImage(true);
+      setImageFetchError(null);
+      setImageFetchSuccess(null);
+
+      const result = await fetchProductImageFromUrl(targetUrl);
+      if (result.success && result.imageUrl) {
+        const updates: Partial<CalculationInputs> = {
+          photoUrl: result.imageUrl,
+        };
+        // Auto-fill title if currently empty and result contains a nice product title
+        if (!inputs.title && result.title) {
+          updates.title = result.title.slice(0, 80);
+        }
+        handleFieldChange(updates);
+        setImageFetchSuccess('Фото виробу знайдено та прикріплено!');
+        setTimeout(() => setImageFetchSuccess(null), 3500);
+      } else {
+        setImageFetchError(
+          result.error || 'Не вдалося знайти фото за цим посиланням. Спробуйте сфотографувати або завантажити файл.'
+        );
+      }
+    } catch (err: any) {
+      console.error('Fetch image error:', err);
+      setImageFetchError('Помилка завантаження фото з сайту.');
+    } finally {
+      setIsFetchingImage(false);
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      setIsFetchingImage(true);
+      setImageFetchError(null);
+      const imgData = await readImageFromClipboard();
+      if (imgData) {
+        handleFieldChange({ photoUrl: imgData });
+        setImageFetchSuccess('Фото вставлено з буферу обміну!');
+        setTimeout(() => setImageFetchSuccess(null), 3000);
+      } else {
+        setImageFetchError('У буфері обміну не знайдено зображення. Скопіюйте картинку або посилання.');
+      }
+    } catch (err: any) {
+      setImageFetchError('Не вдалося отримати доступ до буферу обміну.');
+    } finally {
+      setIsFetchingImage(false);
+    }
+  };
+
+  const handleRemovePhoto = () => {
+    handleFieldChange({ photoUrl: undefined });
+    setImageFetchSuccess(null);
+    setImageFetchError(null);
   };
 
   const handleMetalTypeChange = (metalType: MetalType) => {
@@ -274,8 +395,8 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
         </div>
 
         {/* Посилання на прикрасу в інтернет-магазині */}
-        <div className="sm:col-span-2 lg:col-span-3">
-          <div className="flex items-center justify-between mb-1">
+        <div className="sm:col-span-2 lg:col-span-3 space-y-1.5">
+          <div className="flex items-center justify-between">
             <label className="text-xs font-semibold text-slate-300 flex items-center space-x-1.5">
               <Link2 className="w-3.5 h-3.5 text-sky-400" />
               <span>Посилання на прикрасу в інтернет-магазині</span>
@@ -287,7 +408,7 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
               </span>
             ) : (
               <span className="text-[10px] text-slate-500">
-                Можна вставити URL для швидкого перегляду
+                Вставте URL товару для автозавантаження фото та збереження
               </span>
             )}
           </div>
@@ -299,11 +420,32 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
               value={inputs.productUrl || ''}
               onChange={(e) => handleFieldChange({ productUrl: e.target.value })}
               className={`w-full bg-slate-800 border border-slate-700 rounded-lg pl-3 py-2 text-xs text-sky-200 placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors ${
-                inputs.productUrl ? 'pr-24' : 'pr-3'
+                inputs.productUrl ? 'pr-44 sm:pr-48' : 'pr-3'
               }`}
             />
             {inputs.productUrl && (
               <div className="absolute right-1.5 flex items-center space-x-1">
+                <button
+                  type="button"
+                  onClick={() => handleFetchImageFromUrl()}
+                  disabled={isFetchingImage}
+                  className="flex items-center space-x-1 px-2 py-1 rounded-md bg-amber-500 hover:bg-amber-400 disabled:bg-slate-700 text-slate-950 disabled:text-slate-400 font-bold text-[11px] transition-colors shadow"
+                  title="Автоматично знайти та завантажити фото товару з цієї сторінки"
+                >
+                  {isFetchingImage ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin text-slate-950" />
+                      <span>Пошук...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="w-3 h-3 text-slate-950" />
+                      <span className="hidden sm:inline">Підтягнути фото</span>
+                      <span className="sm:hidden">Фото</span>
+                    </>
+                  )}
+                </button>
+
                 <a
                   href={
                     inputs.productUrl.startsWith('http://') || inputs.productUrl.startsWith('https://')
@@ -312,12 +454,195 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
                   }
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center space-x-1 px-2.5 py-1 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] transition-colors shadow"
+                  className="flex items-center space-x-1 px-2 py-1 rounded-md bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-[11px] transition-colors shadow"
                   title="Відкрити сторінку прикраси в інтернет-магазині"
                 >
                   <span>Відкрити</span>
                   <ExternalLink className="w-3 h-3" />
                 </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Секція додавання та прев'ю фото виробу */}
+        <div className="sm:col-span-2 lg:col-span-3 pt-1">
+          {/* Приховані інпути для камери та файлів */}
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            ref={cameraInputRef}
+            onChange={handleCameraCapture}
+            className="hidden"
+          />
+          <input
+            type="file"
+            accept="image/*"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+
+          <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-1.5">
+                <ImageIcon className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-bold text-slate-200">Фотографії та Мініатюра Виробу</span>
+              </div>
+              <span className="text-[10px] text-slate-400">
+                Відображається в картці та зберігається в історії
+              </span>
+            </div>
+
+            {/* Notification messages */}
+            {imageFetchSuccess && (
+              <div className="p-2 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center space-x-1.5 animate-in fade-in">
+                <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                <span>{imageFetchSuccess}</span>
+              </div>
+            )}
+
+            {imageFetchError && (
+              <div className="p-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-1.5 animate-in fade-in">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                <span className="flex-1">{imageFetchError}</span>
+                <button
+                  type="button"
+                  onClick={() => setImageFetchError(null)}
+                  className="text-rose-400 hover:text-white text-[10px] font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {inputs.photoUrl ? (
+              /* Attached Photo Thumbnail Card */
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-2.5 bg-slate-950/70 border border-amber-500/30 rounded-xl">
+                <div className="flex items-center space-x-3 min-w-0">
+                  <div
+                    onClick={() => setIsLightboxOpen(true)}
+                    className="relative group cursor-pointer shrink-0 rounded-lg overflow-hidden border border-amber-500/40 w-16 h-16 bg-slate-900 shadow-md"
+                    title="Натисніть для збільшення фото"
+                  >
+                    <img
+                      src={inputs.photoUrl}
+                      alt={inputs.title || 'Фото виробу'}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                    />
+                    <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Eye className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/40">
+                        Фото прикріплено
+                      </span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-200 truncate mt-0.5">
+                      {inputs.title || 'Ювелірна прикраса'}
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Мініатюра відображатиметься в історії та порівняльній таблиці
+                    </p>
+                  </div>
+                </div>
+
+                {/* Quick actions for attached photo */}
+                <div className="flex items-center space-x-1.5 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsLightboxOpen(true)}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center space-x-1 border border-slate-700"
+                    title="Переглянути фото на весь екран"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="hidden sm:inline">Переглянути</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center space-x-1 border border-slate-700"
+                    title="Зробити нове фото камерою"
+                  >
+                    <Camera className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="hidden sm:inline">Камера</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors flex items-center space-x-1 border border-slate-700"
+                    title="Завантажити інший файл з галереї"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-sky-400" />
+                    <span className="hidden sm:inline">Файл</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRemovePhoto}
+                    className="p-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/30 text-rose-300 transition-colors"
+                    title="Видалити фото"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* No Photo Attached - Controls to take picture or upload */
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  disabled={isFetchingImage}
+                  className="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-800 hover:border-amber-400/50 border border-slate-700 text-slate-200 hover:text-white transition-all flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1.5 text-xs font-semibold group shadow-sm active:scale-95"
+                  title="Увімкнути камеру пристрою та сфотографувати прикрасу"
+                >
+                  <Camera className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+                  <span>Сфотографувати</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isFetchingImage}
+                  className="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-800 hover:border-sky-400/50 border border-slate-700 text-slate-200 hover:text-white transition-all flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1.5 text-xs font-semibold group shadow-sm active:scale-95"
+                  title="Завантажити фото з комп'ютера або галереї телефону"
+                >
+                  <Upload className="w-4 h-4 text-sky-400 group-hover:scale-110 transition-transform" />
+                  <span>З галереї / файл</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleFetchImageFromUrl()}
+                  disabled={isFetchingImage}
+                  className="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-800 hover:border-emerald-400/50 border border-slate-700 text-slate-200 hover:text-white transition-all flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1.5 text-xs font-semibold group shadow-sm active:scale-95"
+                  title="Підтягнути фотографію з посилання інтернет-магазину"
+                >
+                  {isFetchingImage ? (
+                    <Loader2 className="w-4 h-4 text-amber-400 animate-spin" />
+                  ) : (
+                    <Link2 className="w-4 h-4 text-emerald-400 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>З посилання URL</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePasteFromClipboard}
+                  disabled={isFetchingImage}
+                  className="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-800 hover:border-purple-400/50 border border-slate-700 text-slate-200 hover:text-white transition-all flex flex-col sm:flex-row items-center justify-center space-y-1 sm:space-y-0 sm:space-x-1.5 text-xs font-semibold group shadow-sm active:scale-95"
+                  title="Вставити скопійоване зображення або знімок екрана"
+                >
+                  <Clipboard className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
+                  <span>Вставити з буферу</span>
+                </button>
               </div>
             )}
           </div>
@@ -934,6 +1259,15 @@ export const JewelryForm: React.FC<JewelryFormProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Lightbox Preview Modal */}
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        imageUrl={inputs.photoUrl}
+        title={inputs.title}
+        onRemove={handleRemovePhoto}
+      />
 
     </div>
   );

@@ -15,9 +15,12 @@ import {
   ThumbsDown,
   Filter,
   MessageSquare,
+  Eye,
+  Camera,
 } from 'lucide-react';
 import { SavedCalculation, Currency, UserRating, RatingVote } from '../types';
 import { formatMoney } from '../data/metalRates';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface HistoryDrawerProps {
   isOpen: boolean;
@@ -46,6 +49,24 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
 }) => {
   const backdropPointerDownRef = useRef<boolean>(false);
   const [activeFilter, setActiveFilter] = useState<RatingFilterTab>('all');
+  const [previewImage, setPreviewImage] = useState<{ url: string; title?: string } | null>(null);
+
+  const getItemIcon = (type?: string) => {
+    switch (type) {
+      case 'ring':
+        return '💍';
+      case 'necklace':
+        return '📿';
+      case 'earrings':
+        return '✨';
+      case 'bracelet':
+        return '⌚';
+      case 'pendant':
+        return '🔮';
+      default:
+        return '💎';
+    }
+  };
 
   // ESC key listener to close drawer
   useEffect(() => {
@@ -280,16 +301,49 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
                   key={item.id}
                   className="p-3.5 bg-slate-800/80 border border-slate-700/80 hover:border-amber-400/50 rounded-xl space-y-2.5 text-xs transition-all group"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="min-w-0 pr-2">
-                      <h4 className="font-bold text-white text-sm group-hover:text-amber-300 transition-colors truncate">
-                        {item.inputs.title}
-                      </h4>
-                      <p className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5 truncate">
-                        <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
-                        <span>{new Date(item.createdAt).toLocaleDateString('uk-UA')}</span>
-                        <span>• {item.inputs.metalType} {item.inputs.purity} ({item.inputs.metalWeightGrams}г)</span>
-                      </p>
+                  <div className="flex items-start justify-between gap-2.5">
+                    <div className="flex items-start space-x-2.5 min-w-0 flex-1">
+                      {/* Photo Thumbnail or Category Icon */}
+                      {item.inputs.photoUrl ? (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImage({
+                              url: item.inputs.photoUrl!,
+                              title: item.inputs.title,
+                            });
+                          }}
+                          className="relative group cursor-pointer shrink-0 w-12 h-12 rounded-lg overflow-hidden border border-amber-500/40 bg-slate-950 shadow-sm"
+                          title="Натисніть для перегляду фото у повному розмірі"
+                        >
+                          <img
+                            src={item.inputs.photoUrl}
+                            alt={item.inputs.title}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-200"
+                          />
+                          <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <Eye className="w-3.5 h-3.5 text-white" />
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="w-12 h-12 rounded-lg bg-slate-950/80 border border-slate-700/80 flex items-center justify-center shrink-0 text-xl shadow-inner select-none"
+                          title={item.inputs.itemType}
+                        >
+                          <span>{getItemIcon(item.inputs.itemType)}</span>
+                        </div>
+                      )}
+
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-bold text-white text-sm group-hover:text-amber-300 transition-colors truncate">
+                          {item.inputs.title}
+                        </h4>
+                        <p className="text-[11px] text-slate-400 flex items-center space-x-1 mt-0.5 truncate">
+                          <Calendar className="w-3 h-3 text-slate-500 shrink-0" />
+                          <span>{new Date(item.createdAt).toLocaleDateString('uk-UA')}</span>
+                          <span>• {item.inputs.metalType} {item.inputs.purity} ({item.inputs.metalWeightGrams}г)</span>
+                        </p>
+                      </div>
                     </div>
 
                     <button
@@ -514,6 +568,14 @@ export const HistoryDrawer: React.FC<HistoryDrawerProps> = ({
         )}
 
       </div>
+
+      {/* Lightbox for previewing saved photo */}
+      <ImageLightboxModal
+        isOpen={Boolean(previewImage)}
+        onClose={() => setPreviewImage(null)}
+        imageUrl={previewImage?.url}
+        title={previewImage?.title}
+      />
     </div>
   );
 };
