@@ -19,7 +19,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const { imageBase64, userNotes, userApiKey } = req.body || {};
+    const { imagesBase64, imageBase64, userNotes, userApiKey } = req.body || {};
     const apiKey = userApiKey || process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
@@ -29,16 +29,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    if (!imageBase64) {
-      return res.status(400).json({ success: false, error: 'Зображення відсутнє' });
+    const rawImages: string[] = Array.isArray(imagesBase64) && imagesBase64.length > 0
+      ? imagesBase64
+      : (imageBase64 ? [imageBase64] : []);
+
+    if (rawImages.length === 0) {
+      return res.status(400).json({ success: false, error: 'Зображення відсутні для аналізу' });
     }
 
     const ai = new GoogleGenAI({ apiKey });
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+    const imageParts = rawImages.map((img) => ({
+      inlineData: {
+        data: img.replace(/^data:image\/\w+;base64,/, ''),
+        mimeType: 'image/jpeg',
+      },
+    }));
 
     const promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
-Проаналізуй це зображення (ювелірний виріб, бирка з магазину, товарний чек або сертифікат).
-Витягни або оціни всі параметри виробу у форматі JSON:
+Тобі надано ${rawImages.length > 1 ? `${rawImages.length} зображень одного ювелірного виробу (лицьова/зворотна сторона бирки, сам виріб, проба/клеймо, чек, сертифікат)` : 'зображення ювелірного виробу (бирка, чек, сертифікат або виріб)'}.
+Уважно проаналізуй ВСІ надані зображення, зістав та витягни або оціни всі параметри виробу у форматі JSON:
 - Назва виробу (title)
 - Тип виробу (itemType: "ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
 - Метал (metalType: "gold" | "silver" | "platinum" | "palladium")
@@ -52,14 +61,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 ${userNotes ? `Додаткові нотатки користувача: ${userNotes}` : ''}`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: 'gemini-3.7-flash',
       contents: [
-        {
-          inlineData: {
-            data: cleanBase64,
-            mimeType: 'image/jpeg',
-          },
-        },
+        ...imageParts,
         { text: promptText },
       ],
       config: {

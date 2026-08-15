@@ -39,10 +39,10 @@ function safeParseJson(rawText: string) {
 }
 
 /**
- * Direct browser-side call to Gemini Vision API
+ * Direct browser-side call to Gemini Vision API (supports single or multiple images)
  */
 export async function analyzeJewelryImageClientSide(
-  imageBase64: string,
+  imagesInput: string | string[],
   userNotes: string,
   apiKeyOverride?: string
 ): Promise<Partial<CalculationInputs>> {
@@ -51,12 +51,22 @@ export async function analyzeJewelryImageClientSide(
     throw new Error('NO_API_KEY_GITHUB_PAGES');
   }
 
+  const rawImages = Array.isArray(imagesInput) ? imagesInput : [imagesInput];
+  if (rawImages.length === 0) {
+    throw new Error('Не передано зображення для аналізу');
+  }
+
   const ai = new GoogleGenAI({ apiKey });
-  const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+  const imageParts = rawImages.map((img) => ({
+    inlineData: {
+      data: img.replace(/^data:image\/\w+;base64,/, ''),
+      mimeType: 'image/jpeg',
+    },
+  }));
 
   const promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
-Проаналізуй це зображення (це може бути ювелірний виріб, бирка з магазину, товарний чек або сертифікат).
-Витягни або оціни всі параметри виробу у форматі JSON:
+Тобі надано ${rawImages.length > 1 ? `${rawImages.length} зображень одного ювелірного виробу (лицьова/зворотна сторона бирки, сам виріб, проба/клеймо, чек, сертифікат)` : 'зображення ювелірного виробу (бирка, чек, сертифікат або виріб)'}.
+Уважно проаналізуй ВСІ надані зображення, зістав та витягни або оціни всі параметри виробу у форматі JSON:
 - Назва виробу (title)
 - Тип виробу (itemType: "ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
 - Метал (metalType: "gold" | "silver" | "platinum" | "palladium")
@@ -70,14 +80,9 @@ export async function analyzeJewelryImageClientSide(
 ${userNotes ? `Додаткова інформація від користувача: ${userNotes}` : ''}`;
 
   const response = await ai.models.generateContent({
-    model: 'gemini-3.6-flash',
+    model: 'gemini-3.7-flash',
     contents: [
-      {
-        inlineData: {
-          data: cleanBase64,
-          mimeType: 'image/jpeg',
-        },
-      },
+      ...imageParts,
       { text: promptText },
     ],
     config: {
@@ -127,7 +132,7 @@ ${userNotes ? `Додаткова інформація від користува
     brandName: parsed.brand || '',
     currency: (['UAH', 'USD', 'EUR'].includes(parsed.currency) ? parsed.currency : 'UAH') as any,
     notes: parsed.aiNotes || '',
-    photoUrl: imageBase64,
+    photoUrl: rawImages[0] || '',
   };
 
   if (Array.isArray(parsed.gemstones) && parsed.gemstones.length > 0) {

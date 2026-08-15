@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: "15mb" }));
+app.use(express.json({ limit: "50mb" }));
 
 // Initialize Gemini AI client on server side
 const getAiClient = () => {
@@ -243,13 +243,17 @@ app.get("/api/metal-rates", async (req, res) => {
   }
 });
 
-// Analyze image (tag, receipt, or jewelry piece) using Gemini Vision API
+// Analyze images (tag, receipt, or jewelry piece) using Gemini Vision API
 app.post("/api/analyze-jewelry", async (req, res) => {
   try {
-    const { imageBase64, mimeType = "image/jpeg", userNotes } = req.body;
+    const { imagesBase64, imageBase64, mimeType = "image/jpeg", userNotes } = req.body;
 
-    if (!imageBase64) {
-      return res.status(400).json({ error: "Зображення є обов'язковим для аналізу" });
+    const rawImages: string[] = Array.isArray(imagesBase64) && imagesBase64.length > 0
+      ? imagesBase64
+      : (imageBase64 ? [imageBase64] : []);
+
+    if (rawImages.length === 0) {
+      return res.status(400).json({ error: "Будь ласка, надайте хоча б одне зображення для аналізу" });
     }
 
     const ai = getAiClient();
@@ -259,11 +263,19 @@ app.post("/api/analyze-jewelry", async (req, res) => {
       });
     }
 
-    const cleanBase64 = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+    const imageParts = rawImages.map((img) => {
+      const cleanBase64 = img.replace(/^data:image\/\w+;base64,/, "");
+      return {
+        inlineData: {
+          data: cleanBase64,
+          mimeType,
+        },
+      };
+    });
 
     const promptText = `Ти — експерт гемолог та оцінювач ювелірних виробів.
-Проаналізуй це зображення (це може бути ювелірний виріб, бирка з магазину, товарний чек або сертифікат).
-Витягни або оціни всі параметри виробу у форматі JSON:
+Тобі надано ${rawImages.length > 1 ? `${rawImages.length} зображень одного ювелірного виробу (це можуть бути лицьова і зворотна сторона біржової бирки, фото самого виробу, клейма/проби, чек або сертифікат)` : "зображення ювелірного виробу (бирка, чек, сертифікат або сам виріб)"}.
+Уважно проаналізуй ВСІ надані зображення, зістав та витягни або оціни всі параметри виробу у форматі JSON:
 - Назва виробу (title)
 - Тип виробу (itemType: "ring" | "necklace" | "earrings" | "bracelet" | "pendant" | "other")
 - Метал (metalType: "gold" | "silver" | "platinum" | "palladium")
@@ -273,18 +285,13 @@ app.post("/api/analyze-jewelry", async (req, res) => {
 - Валюта (currency: "UAH" | "USD" | "EUR")
 - Бренд (brand: назва бренду або виробника, або null)
 - Вставки каміння (gemstones: масив об'єктів з полями: type (напр. "Діамант", "Смарагд", "Фіаніт"), count (кількість), carats (вага в каратах на 1 камінь або сумарно), clarity (чистота, напр "VVS2", "VS1", "3/4" або null), color (колір, напр "D", "G", "4" або null), origin ("natural" | "lab" | "synthetic")))
-- Нотатки AI (aiNotes: стислий аналіз того, що зображено та які параметри були розпізнані або припущені).
+- Нотатки AI (aiNotes: стислий аналіз того, що зображено на фотографіях та які параметри були розпізнані).
 ${userNotes ? `Додаткова інформація від користувача: ${userNotes}` : ""}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.6-flash",
+      model: "gemini-3.7-flash",
       contents: [
-        {
-          inlineData: {
-            data: cleanBase64,
-            mimeType,
-          },
-        },
+        ...imageParts,
         { text: promptText },
       ],
       config: {
