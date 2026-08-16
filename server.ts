@@ -22,25 +22,110 @@ const getAiClient = () => {
   });
 };
 
-function safeParseJson(rawText: string) {
-  if (!rawText) return {};
+function safeParseJson(rawText: string): any {
+  if (!rawText || typeof rawText !== "string") return {};
+
+  let cleaned = rawText
+    .replace(/^[\s\S]*?```(?:json)?\s*/i, "")
+    .replace(/\s*```[\s\S]*$/i, "")
+    .trim();
+
+  // Try extracting the outermost valid JSON object if extra text surrounds it
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+  }
+
+  // 1. Direct parse attempt
   try {
-    const cleaned = rawText
-      .replace(/```json/gi, "")
-      .replace(/```/g, "")
-      .trim();
     return JSON.parse(cleaned);
-  } catch (e) {
-    console.error("Failed to parse JSON text from Gemini:", rawText);
-    throw new Error("Не вдалося розпарсити відповідь від AI");
+  } catch {
+    // 2. Syntax cleanup attempt: trailing commas, unescaped newlines inside strings
+    try {
+      const sanitized = cleaned
+        .replace(/,\s*([\}\]])/g, "$1")
+        .replace(/\n(?=(?:[^"]*"[^"]*")*[^"]*$)/g, " ");
+      return JSON.parse(sanitized);
+    } catch {
+      // 3. Balancing repair attempt for truncated JSON responses
+      try {
+        let repaired = cleaned;
+        const quoteCount = (repaired.match(/(?<!\\)"/g) || []).length;
+        if (quoteCount % 2 !== 0) {
+          repaired += '"';
+        }
+        const openBraces = (repaired.match(/\{/g) || []).length;
+        const closeBraces = (repaired.match(/\}/g) || []).length;
+        for (let i = 0; i < openBraces - closeBraces; i++) {
+          repaired += "}";
+        }
+        const openBrackets = (repaired.match(/\[/g) || []).length;
+        const closeBrackets = (repaired.match(/\]/g) || []).length;
+        for (let i = 0; i < openBrackets - closeBrackets; i++) {
+          repaired += "]";
+        }
+        return JSON.parse(repaired);
+      } catch {
+        // 4. Regex extraction for known keys so we never throw or crash
+        const result: Record<string, any> = {};
+
+        const summaryMatch =
+          cleaned.match(/"summary"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i) ||
+          cleaned.match(/"summary"\s*:\s*"([^"\n\r]+)/i);
+        if (summaryMatch) result.summary = summaryMatch[1].replace(/\\"/g, '"');
+
+        const ratingMatch = cleaned.match(/"investmentRating"\s*:\s*(\d+(?:\.\d+)?)/i);
+        if (ratingMatch) result.investmentRating = Number(ratingMatch[1]);
+
+        const expMatch = cleaned.match(/"investmentExplanation"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+        if (expMatch) result.investmentExplanation = expMatch[1].replace(/\\"/g, '"');
+
+        const adviceMatch =
+          cleaned.match(/"advice"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i) ||
+          cleaned.match(/"advice"\s*:\s*"([^"\n\r]+)/i);
+        if (adviceMatch) result.advice = adviceMatch[1].replace(/\\"/g, '"');
+
+        const discMatch = cleaned.match(/"recommendedDiscountPercent"\s*:\s*(\d+(?:\.\d+)?)/i);
+        if (discMatch) result.recommendedDiscountPercent = Number(discMatch[1]);
+
+        const titleMatch = cleaned.match(/"title"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+        if (titleMatch) result.title = titleMatch[1];
+
+        const itemTypeMatch = cleaned.match(/"itemType"\s*:\s*"([^"]+)"/i);
+        if (itemTypeMatch) result.itemType = itemTypeMatch[1];
+
+        const metalMatch = cleaned.match(/"metalType"\s*:\s*"([^"]+)"/i);
+        if (metalMatch) result.metalType = metalMatch[1];
+
+        const purityMatch = cleaned.match(/"purity"\s*:\s*(\d+)/i);
+        if (purityMatch) result.purity = Number(purityMatch[1]);
+
+        const weightMatch = cleaned.match(/"metalWeightGrams"\s*:\s*(\d+(?:\.\d+)?)/i);
+        if (weightMatch) result.metalWeightGrams = Number(weightMatch[1]);
+
+        const priceMatch = cleaned.match(/"price"\s*:\s*(\d+(?:\.\d+)?)/i);
+        if (priceMatch) result.price = Number(priceMatch[1]);
+
+        const currMatch = cleaned.match(/"currency"\s*:\s*"([^"]+)"/i);
+        if (currMatch) result.currency = currMatch[1];
+
+        if (Object.keys(result).length > 0) {
+          return result;
+        }
+
+        console.warn("JSON repair fallback triggered for input (truncated):", cleaned.slice(0, 150));
+        return {};
+      }
+    }
   }
 }
 
-// Resilient Gemini generateContent caller with fallback models and retry for 503/429
+// Resilient Gemini generateContent caller with fallback models and retry for 503/429/quota
 const FALLBACK_MODELS = [
-  "gemini-3.7-flash",
-  "gemini-3.1-flash-lite",
   "gemini-flash-latest",
+  "gemini-3.1-flash-lite",
+  "gemini-3.7-flash",
   "gemini-3.1-pro-preview",
 ];
 
@@ -66,14 +151,19 @@ async function generateWithModelFallback(
         }
       } catch (err: any) {
         lastError = err;
-        const status = err?.status || err?.code || (err?.message?.includes("503") ? 503 : (err?.message?.includes("429") ? 429 : 0));
-        const isTemporary = status === 503 || status === 429 || err?.message?.includes("high demand") || err?.message?.includes("UNAVAILABLE");
+        const msg = String(err?.message || err || "");
+        const status = err?.status || err?.code || (msg.includes("503") ? 503 : (msg.includes("429") ? 429 : 0));
+        const isQuota = msg.includes("resource_exhausted") || msg.includes("quota") || msg.includes("RESOURCE_EXHAUSTED") || msg.includes("rate-limits");
+        const isTemporary = status === 503 || (!isQuota && status === 429) || msg.includes("high demand") || msg.includes("UNAVAILABLE");
         
-        console.warn(`Model ${modelName} (attempt ${attempt}) call failed (status: ${status}), ${isTemporary ? "temporary high demand detected" : "error"}:`, err?.message || err);
+        console.warn(`Model ${modelName} (attempt ${attempt}) call failed (status: ${status}, isQuota: ${isQuota}):`, msg.slice(0, 150));
         
-        if (attempt === 1 && isTemporary) {
+        if (isQuota) {
+          // If quota exceeded for this model, immediately switch to next model without waiting
+          break;
+        } else if (attempt === 1 && isTemporary) {
           // Brief backoff before retry on same model
-          await new Promise((r) => setTimeout(r, 600));
+          await new Promise((r) => setTimeout(r, 500));
         } else {
           // Move on to next model
           break;
@@ -940,6 +1030,8 @@ ${userNotes ? `\nВАЖЛИВО! КОРИСТУВАЧ ВКАЗАВ ДОДАТК�
         ],
         config: {
           responseMimeType: "application/json",
+          temperature: 0.1,
+          maxOutputTokens: 2048,
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -1053,6 +1145,8 @@ ${calculationDetails.userComment || calculationDetails.notes ? `- Комента
       contents: prompt,
       config: {
         responseMimeType: "application/json",
+        temperature: 0.2,
+        maxOutputTokens: 1500,
         responseSchema: {
           type: Type.OBJECT,
           properties: {
